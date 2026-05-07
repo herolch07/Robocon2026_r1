@@ -117,8 +117,9 @@ class JoystickBridge(Node):
             # 注意：Y轴取反是因为手柄坐标系与机器人坐标系可能不同
             direction = math.atan2(float(lx), -float(ly))
             
-            # 计算速度大小 (0-100%)
-            magnitude = math.sqrt(lx*lx + ly*ly) / 8192.0
+            # 计算速度大小并限幅到 0-100%。斜向推杆时 lx/ly 同时接近满量程，
+            # 如果不限幅，sqrt(lx^2 + ly^2) 会超过 8192。
+            magnitude = min(math.sqrt(lx*lx + ly*ly) / 8192.0, 1.0)
             speed_cm = magnitude * max_speed_cm
         
         # 计算旋转速度

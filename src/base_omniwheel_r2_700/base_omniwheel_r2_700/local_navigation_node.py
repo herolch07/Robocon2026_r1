@@ -9,6 +9,7 @@ Local Navigation Node for R2 Omniwheel Base
 机械参数:
 - 4 轮 X 型布局 (45°, 135°, 225°, 315°)
 - 轮心距中心距离: 327.038 mm = 0.327038 m
+- 全向轮半径: 63.5 mm = 0.0635 m
 - 轮子编号: 1(右前), 2(左前), 3(左后), 4(右后)
 """
 
@@ -18,8 +19,8 @@ from std_msgs.msg import Float32MultiArray
 import numpy as np
 
 # 机械参数
-WHEEL_RADIUS_M = 0.327038  # 轮心到底盘中心距离 (m)
-WHEEL_BASE_RADIUS = WHEEL_RADIUS_M  # 别名，更清晰
+WHEEL_BASE_RADIUS = 0.327038  # 轮心到底盘中心距离 (m)
+OMNIWHEEL_RADIUS_M = 0.0635  # 全向轮半径 (m)
 
 # 轮子角度 (X 型布局，单位：弧度)
 # 实际布局（从上方看机器人）：
@@ -101,6 +102,7 @@ class LocalNavigationNode(Node):
         
         self.get_logger().info("Local Navigation Node initialized")
         self.get_logger().info(f"Wheel base radius: {WHEEL_BASE_RADIUS*1000:.2f} mm")
+        self.get_logger().info(f"Omniwheel radius: {OMNIWHEEL_RADIUS_M*1000:.2f} mm")
         self.get_logger().info(f"Motor control mode: {DEFAULT_MOTOR_MODE} (VEL)")
     
     def driving_callback(self, msg):
@@ -183,13 +185,9 @@ class LocalNavigationNode(Node):
             # 应用电机方向反转
             v_wheel *= MOTOR_DIRECTION[motor_id]
             
-            # 假设轮子直径或半径为 R_wheel，则角速度 = v / R_wheel
-            # 由于我们不知道轮子半径，这里假设电机直驱或需要您提供轮径
-            # 暂时直接使用线速度作为"速度指令" (需根据实际轮径调整)
-            # TODO: 需要用户提供轮子半径以计算真实角速度
-            
-            # 临时方案: 假设电机速度单位已经匹配或需要标定
-            wheel_speeds[motor_id] = v_wheel
+            # 达妙 VEL 模式需要电机角速度。这里按轮子直驱换算:
+            # rad/s = wheel linear speed (m/s) / wheel radius (m)
+            wheel_speeds[motor_id] = v_wheel / OMNIWHEEL_RADIUS_M
         
         return wheel_speeds
     

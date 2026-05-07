@@ -90,7 +90,9 @@ class MotorControl:
         data = np.array([0]*8, np.uint8)
         data[0:4] = unpack('4B', pack('<f', float(V_desired))) # 只发送速度
         self.__send_data(motorid, data)
-        self.recv()
+        # Feedback is read by damiao_node's 100 Hz timer. Avoid blocking each
+        # velocity command here so all four wheel commands, especially stop
+        # commands, are sent with less skew.
 
     def recv(self):
         """解析反馈：处理 ID 和 ERR 状态位，更新电机状态"""
