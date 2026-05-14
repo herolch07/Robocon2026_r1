@@ -7,6 +7,8 @@
 - [x] 添加死区过滤功能
 - [x] 编写完整的 README 文档
 - [x] 符合 AGENTS.md 工程规范
+- [x] 增加 `/joystick_data` 输入 watchdog，超时后发布 `/local_driving = [0,0,0]`
+- [x] README 追加 2026-05-14 watchdog 说明
 
 ## 待完善功能
 - [ ] 添加按键映射支持（A/B/X/Y 键功能）

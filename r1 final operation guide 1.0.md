@@ -1,12 +1,15 @@
 # R1 Final Operation Guide 1.0
 
-本指南记录当前可用版本的 R1 底盘启动流程。当前版本已确认：
+本指南记录当前可用版本的 R1 底盘和机械臂启动流程。当前版本已确认：
 
 - 手柄必须使用 X 模式。
 - 手柄数据范围是 `-128 ~ 128`，比旧版 `8192` 更容易读。
 - `joystick_bridge` 默认最大平移速度是 `40 cm/s`。
 - 全向轮半径按 `63.5 mm` 换算电机速度。
-- Motor 3 存在硬件/驱动响应问题，当前软件不再强行平滑补偿。
+- Motor 5 是机械臂升降电机。
+- Motor 6 是机械臂水平移动电机。
+- Motor 7 是机械臂夹爪电机，默认夹爪速度是 `1.0 rad/s`。
+- Motor 3 之前的反向响应慢问题已确认是 ESC 损坏导致；更换/修复 ESC 后问题已解决。
 
 ## 0. 启动前检查
 
@@ -51,31 +54,37 @@ chmod +x r1_start_base_1_0.sh
 脚本会启动 tmux session：
 
 ```text
-r1_base_control
+r1_control
 ```
 
 窗口：
 
 ```text
 0 joystick   手柄驱动
-1 bridge     手柄到底盘转换
+1 base_bridge 手柄到底盘转换
 2 motors     达妙电机驱动
 3 nav        全向轮运动学
-4 monitor    监控命令窗口
+4 elevator   升降电机控制
+5 elev_bridge 手柄到升降控制
+6 horizontal 水平电机控制
+7 horiz_bridge 手柄到水平控制
+8 gripper    夹爪电机控制
+9 grip_bridge 手柄到夹爪控制
+10 monitor   监控命令窗口
 ```
 
 tmux 常用操作：
 
 ```text
-切换窗口: Ctrl+b，然后按 0-4
+切换窗口: Ctrl+b，然后按窗口编号
 离开但保持运行: Ctrl+b，然后按 d
-重新进入: tmux attach -t r1_base_control
-关闭全部: tmux kill-session -t r1_base_control
+重新进入: tmux attach -t r1_control
+关闭全部: tmux kill-session -t r1_control
 ```
 
 ## 2. 手动启动
 
-如果不用脚本，开 4 个 terminal。
+如果不用脚本，开 10 个 terminal。
 
 Terminal 1:
 
@@ -90,7 +99,7 @@ Terminal 2:
 ```bash
 cd /home/robotics/robocon/new_ws
 source install/setup.bash
-python3 -m joystick_bridge.joystick_bridge
+ros2 run joystick_bridge joystick_bridge
 ```
 
 Terminal 3:
@@ -109,6 +118,54 @@ source install/setup.bash
 ros2 run base_omniwheel_r2_700 local_navigation_node
 ```
 
+Terminal 5:
+
+```bash
+cd /home/robotics/robocon/new_ws
+source install/setup.bash
+ros2 run r1_arm_control elevator_controller_node
+```
+
+Terminal 6:
+
+```bash
+cd /home/robotics/robocon/new_ws
+source install/setup.bash
+ros2 run r1_arm_control elevator_joystick_bridge_node
+```
+
+Terminal 7:
+
+```bash
+cd /home/robotics/robocon/new_ws
+source install/setup.bash
+ros2 run r1_arm_control horizontal_controller_node
+```
+
+Terminal 8:
+
+```bash
+cd /home/robotics/robocon/new_ws
+source install/setup.bash
+ros2 run r1_arm_control horizontal_joystick_bridge_node
+```
+
+Terminal 9:
+
+```bash
+cd /home/robotics/robocon/new_ws
+source install/setup.bash
+ros2 run r1_arm_control arm_gripper_controller_node
+```
+
+Terminal 10:
+
+```bash
+cd /home/robotics/robocon/new_ws
+source install/setup.bash
+ros2 run r1_arm_control arm_gripper_joystick_bridge_node
+```
+
 ## 3. 验证节点
 
 ```bash
@@ -124,6 +181,12 @@ ros2 node list
 /joystick_bridge
 /motor_controller_node
 /local_navigation_node
+/elevator_controller_node
+/elevator_joystick_bridge_node
+/horizontal_controller_node
+/horizontal_joystick_bridge_node
+/arm_gripper_controller_node
+/arm_gripper_joystick_bridge_node
 ```
 
 ## 4. 验证话题
@@ -170,6 +233,24 @@ data[2] = motor speed rad/s
 data[3] = duration, 0 means continuous
 ```
 
+机械臂升降速度：
+
+```bash
+ros2 topic echo /elevator_speed_cmd
+```
+
+机械臂水平速度：
+
+```bash
+ros2 topic echo /horizontal_speed_cmd
+```
+
+机械臂夹爪速度：
+
+```bash
+ros2 topic echo /arm_gripper_speed_cmd
+```
+
 ## 5. 调速度
 
 默认：
@@ -202,7 +283,7 @@ ros2 param set /joystick_bridge max_speed_cm 60.0
 ros2 param set /joystick_bridge max_rotation 1.5
 ```
 
-当前 Motor 3 状态不理想，不建议直接设置很高速度。
+速度调高前仍建议先低速试车，确认底盘响应正常。
 
 ## 6. 控制方式
 
@@ -210,20 +291,27 @@ ros2 param set /joystick_bridge max_rotation 1.5
 左摇杆上/下: 前进/后退
 左摇杆左/右: 左右平移
 右摇杆左/右: 原地旋转
+R2: 升降电机正向
+L2: 升降电机反向
+D-pad 左/右: 水平电机左/右移动
+D-pad 上: 水平电机加速档，0.2 -> 0.5 -> 1.0
+D-pad 下: 水平电机减速档，1.0 -> 0.5 -> 0.2
+R1: 夹爪正向
+L1: 夹爪反向
 ```
 
 所有操作建议先小幅推动摇杆。
 
-## 7. Motor 3 注意事项
+## 7. Motor 3 记录
 
-Motor 3 已确认存在反向响应慢的问题：
+Motor 3 之前出现过反向响应慢的问题：
 
 ```text
 连续反向命令时可以反向
 突然从正向切到反向时响应明显慢于其他轮
 ```
 
-当前判断更像硬件、驱动器参数、接线或 Motor 3 本体问题。当前软件版本不再做强制停车或平滑补偿，因为那些方案影响驾驶手感。
+最终确认原因是 ESC 损坏，不是软件速度计算问题。当前软件版本不再做强制停车或平滑补偿，底盘控制保持直接响应。
 
 如果需要单独测试电机：
 
@@ -246,7 +334,7 @@ python3 motor_reversal_test.py --motor 4 --speed 10 --hold 2.0 --repeat 3
 如果使用 tmux 脚本：
 
 ```bash
-tmux kill-session -t r1_base_control
+tmux kill-session -t r1_control
 ```
 
 如果手动启动，在每个 terminal 按：
@@ -262,7 +350,50 @@ ros2 daemon stop
 ros2 daemon start
 ```
 
-## 9. 上传 GitHub
+## 9. Timeout / Watchdog 安全保护
+
+当前版本有多层安全保护：
+
+```text
+joystick_bridge:
+  超过 0.3s 没收到 /joystick_data
+  -> 发布 /local_driving = [0, 0, 0]
+
+local_navigation_node:
+  超过 0.3s 没收到 /local_driving
+  -> Motor 1-4 发布 0 rad/s
+
+damiao_node:
+  对 duration=0 的 VEL 连续命令
+  超过 0.5s 没收到同一个 motor_id 的新命令
+  -> 该 motor_id 发布 0 rad/s
+
+r1_arm_control controllers:
+  elevator / horizontal / arm_gripper
+  超过 0.3s 没收到对应 speed_cmd
+  -> 对应电机发布 0 rad/s
+```
+
+查看参数：
+
+```bash
+ros2 param get /joystick_bridge input_timeout_sec
+ros2 param get /local_navigation_node command_timeout_sec
+ros2 param get /motor_controller_node command_timeout_sec
+ros2 param get /elevator_controller_node timeout_sec
+ros2 param get /horizontal_controller_node timeout_sec
+ros2 param get /arm_gripper_controller_node timeout_sec
+```
+
+正常情况下不建议关掉这些 timeout。调试时如果需要改，只建议小范围调整，例如：
+
+```bash
+ros2 param set /joystick_bridge input_timeout_sec 0.5
+ros2 param set /local_navigation_node command_timeout_sec 0.5
+ros2 param set /motor_controller_node command_timeout_sec 0.8
+```
+
+## 10. 上传 GitHub
 
 ```bash
 cd /home/robotics/robocon/new_ws

@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>r1_arm_control</name>
+  <version>0.1.0</version>
+  <description>R1 arm control package. Converts arm commands to safe Damiao motor commands.</description>
+
+  <maintainer email="robotics@example.com">EdUHK Robocon Team</maintainer>
+  <license>Apache License 2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>my_joystick_msgs</depend>
+
+  <exec_depend>ros2run</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

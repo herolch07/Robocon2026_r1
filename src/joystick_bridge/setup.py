@@ -1,3 +1,5 @@
+import os
+from glob import glob
 from setuptools import setup
 
 package_name = 'joystick_bridge'
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('lib', package_name), glob('scripts/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -17,10 +20,5 @@ setup(
     maintainer_email='robotics@example.com',
     description='Bridge node to convert joystick input to omniwheel base navigation commands',
     license='Apache License 2.0',
-    tests_require=['pytest'],
-    entry_points={
-        'console_scripts': [
-            'joystick_bridge = joystick_bridge.joystick_bridge:main',
-        ],
-    },
+    entry_points={},
 )

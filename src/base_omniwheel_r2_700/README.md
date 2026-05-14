@@ -321,3 +321,70 @@ bash /home/robotics/robocon/new_ws/src/base_omniwheel_r2_700/test_damiao.sh
 Notes:
 - The run script maps `/dev/serial/by-id/...` (or `/dev/ttyACM0`) into the container.
 - If the device path changes, update the script or pass `--device` manually.
+
+---
+
+## 2026-05-14 安全更新：底盘与电机级 Watchdog
+
+本节记录 2026-05-14 后新增的安全行为，用于覆盖上游 node 崩溃、topic 中断、手动发布连续速度命令后忘记停止等情况。
+
+### local_navigation_node 输入超时保护
+
+触发条件：
+
+```text
+超过 command_timeout_sec 没有收到 /local_driving
+```
+
+默认参数：
+
+```text
+command_timeout_sec = 0.3 s
+watchdog_hz = 20.0 Hz
+```
+
+超时行为：
+
+```text
+向 Motor 1-4 发布 0 rad/s 速度命令
+```
+
+查看和调整：
+
+```bash
+ros2 param get /local_navigation_node command_timeout_sec
+ros2 param set /local_navigation_node command_timeout_sec 0.3
+```
+
+### damiao_node 电机级连续速度命令保护
+
+触发条件：
+
+```text
+mode = 3 (VEL)
+duration = 0.0
+超过 command_timeout_sec 没有收到该 motor_id 的新速度命令
+```
+
+默认参数：
+
+```text
+command_timeout_sec = 0.5 s
+watchdog_hz = 20.0 Hz
+```
+
+超时行为：
+
+```text
+只对超时的 motor_id 发送 0 rad/s
+节点保持运行，不 disable 电机
+```
+
+注意：旧版文档中 `duration == 0` 被描述为“持续运行直到手动停止”。从 2026-05-14 安全更新后，这类连续速度命令必须被周期刷新；如果不刷新，将由 `damiao_node` watchdog 自动归零。
+
+查看和调整：
+
+```bash
+ros2 param get /motor_controller_node command_timeout_sec
+ros2 param set /motor_controller_node command_timeout_sec 0.5
+```

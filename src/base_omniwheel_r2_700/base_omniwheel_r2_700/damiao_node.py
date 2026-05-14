@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
 from std_msgs.msg import Float32MultiArray
 from base_omniwheel_r2_700.DM_CAN import *
 import serial
@@ -9,6 +10,7 @@ import threading
 
 # 配置参数
 DEVICE_ID = "usb-HDSC_CDC_Device_00000000050C-if00"
+DEFAULT_MOTOR_IDS = [1, 2, 3, 4, 5, 6, 7]
 DEFAULT_CONTROL_MODE = Control_Type.VEL  # 默认使用速度模式
 RECONNECT_INTERVAL = 2.0  # 重连尝试间隔（秒）
 RECONNECT_MAX_ATTEMPTS = 5  # 最大重连尝试次数，0 表示无限重试
@@ -27,6 +29,9 @@ def find_device_port(device_id):
 class MotorControllerNode(Node):
     def __init__(self):
         super().__init__("motor_controller_node")
+        self.declare_parameter("motor_ids", DEFAULT_MOTOR_IDS)
+        self.declare_parameter("command_timeout_sec", 0.5)
+        self.declare_parameter("watchdog_hz", 20.0)
         
         # 连接状态标志
         self.is_connected = False
@@ -35,6 +40,8 @@ class MotorControllerNode(Node):
         # 电机计时器字典 {motor_id: timer}
         self.motor_timers = {}
         self.last_reenable_time = {}
+        self.last_velocity_command_time = {}
+        self.watchdog_stopped = {}
         
         # 初始化硬件连接
         if not self._init_hardware():
@@ -45,6 +52,9 @@ class MotorControllerNode(Node):
         
         # 创建定时器用于周期性读取电机反馈（关键！）
         self.recv_timer = self.create_timer(0.01, self._recv_feedback)  # 100Hz 读取反馈
+
+        watchdog_hz = max(float(self.get_parameter("watchdog_hz").value), 1.0)
+        self.command_watchdog_timer = self.create_timer(1.0 / watchdog_hz, self._command_watchdog)
         
         # 订阅控制话题
         self.subscription = self.create_subscription(
@@ -76,7 +86,12 @@ class MotorControllerNode(Node):
 
             # 4. 初始化电机 (支持多个电机 ID)
             self.motors = {}
-            for motor_id in [1, 2, 3, 4]:
+            motor_ids = [
+                int(motor_id)
+                for motor_id in self.get_parameter("motor_ids").get_parameter_value().integer_array_value
+            ]
+            self.get_logger().info(f"Configured motor IDs: {motor_ids}")
+            for motor_id in motor_ids:
                 motor = Motor(DM_Motor_Type.DMH3510, motor_id, 0x00)
                 self.motors[motor_id] = motor
                 self.motor_control.addMotor(motor)
@@ -143,7 +158,7 @@ class MotorControllerNode(Node):
     def control_callback(self, msg):
         """
         消息协议: [motor_id, mode, speed, param4]
-        - motor_id: 电机 ID (1-4)
+        - motor_id: 电机 ID
         - mode: 控制模式
           - 0: 失能
           - 2: POS_VEL 模式，param4 = position (位置，弧度)
@@ -151,6 +166,10 @@ class MotorControllerNode(Node):
         - speed: 速度 (rad/s)
         - param4: 根据模式不同含义不同
         """
+        if len(msg.data) < 4:
+            self.get_logger().warn(f"Invalid damiao_control command: expected 4 values, got {len(msg.data)}")
+            return
+
         if not self.is_connected:
             self.get_logger().warn("Not connected to hardware. Ignoring command.")
             return
@@ -168,6 +187,8 @@ class MotorControllerNode(Node):
             try:
                 if mode == 0:
                     self.motor_control.disable(motor)
+                    self.last_velocity_command_time.pop(motor_id, None)
+                    self.watchdog_stopped[motor_id] = True
                     self.get_logger().info(f"Motor {motor_id} disabled")
                 elif mode == 2:
                     # POS_VEL 模式: param4 = position
@@ -181,6 +202,12 @@ class MotorControllerNode(Node):
                     self.ensure_motor_enabled(motor, motor_id)
                     self.motor_control.control_Vel(motor, speed)
                     self.get_logger().debug(f"Motor {motor_id}: vel={speed}, duration={duration}s")
+
+                    # duration=0 表示连续速度命令，必须由 watchdog 兜底。
+                    # 上游如果停止刷新该电机命令，本节点会在 command_timeout_sec 后归零。
+                    if duration <= 0:
+                        self.last_velocity_command_time[motor_id] = time.monotonic()
+                        self.watchdog_stopped[motor_id] = abs(speed) < 1e-6
                     
                     # 如果 duration > 0，使用 threading.Timer 实现一次性停止
                     if duration > 0:
@@ -223,6 +250,8 @@ class MotorControllerNode(Node):
         try:
             # 发送停止命令
             self.motor_control.control_Vel(motor, 0.0)
+            self.last_velocity_command_time.pop(motor_id, None)
+            self.watchdog_stopped[motor_id] = True
             self.get_logger().info(f"Motor {motor_id} auto-stopped (duration elapsed)")
             
             # 清除计时器引用
@@ -231,12 +260,51 @@ class MotorControllerNode(Node):
         except Exception as e:
             self.get_logger().error(f"Failed to auto-stop motor {motor_id}: {e}")
 
+    def _command_watchdog(self):
+        """
+        电机级连续速度命令看门狗。
+
+        对 duration=0 的 VEL 命令，如果超过 command_timeout_sec 没有收到新的刷新，
+        立即向对应电机发送 0 rad/s。这个逻辑是最后一道安全防线，覆盖上游 node 崩溃、
+        topic 中断或手动发布一次连续速度后忘记停止的情况。
+        """
+        if not self.is_connected or not hasattr(self, "motor_control"):
+            return
+
+        timeout_sec = float(self.get_parameter("command_timeout_sec").value)
+        now = time.monotonic()
+
+        for motor_id, last_time in list(self.last_velocity_command_time.items()):
+            if now - last_time <= timeout_sec:
+                continue
+            if self.watchdog_stopped.get(motor_id, False):
+                continue
+            motor = self.motors.get(motor_id)
+            if motor is None:
+                continue
+            try:
+                self.motor_control.control_Vel(motor, 0.0)
+                self.watchdog_stopped[motor_id] = True
+                self.get_logger().warn(
+                    f"Motor {motor_id} command timeout after {timeout_sec:.2f}s; sent 0 rad/s"
+                )
+            except serial.SerialException as e:
+                self.get_logger().error(f"Serial communication error in command watchdog: {e}")
+                self.is_connected = False
+            except Exception as e:
+                self.get_logger().error(f"Command watchdog failed for motor {motor_id}: {e}")
+
 def main(args=None):
     rclpy.init(args=args)
     node = MotorControllerNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

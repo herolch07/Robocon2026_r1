@@ -199,3 +199,48 @@ Apache License 2.0
 ## 👥 维护者
 
 EdUHK Robocon Robotics Team
+
+---
+
+## 2026-05-14 安全更新：输入 Watchdog
+
+本节是对旧版“超时保护机制”的追加说明。旧版设计主要依赖上游 `joystick_node` 发布全零数据；当前版本已经在 `joystick_bridge` 内增加主动输入 watchdog。
+
+### 超时触发条件
+
+```text
+超过 input_timeout_sec 没有收到新的 /joystick_data
+```
+
+默认参数：
+
+```text
+input_timeout_sec = 0.3 s
+watchdog_hz = 20.0 Hz
+```
+
+### 超时后的行为
+
+节点向 `/local_driving` 发布一次停止指令：
+
+```text
+data = [0.0, 0.0, 0.0]
+```
+
+含义：
+
+```text
+direction_rad = 0.0
+speed_cm_per_sec = 0.0
+rotation_rad_per_sec = 0.0
+```
+
+这样即使手柄驱动、USB 手柄或上游 topic 链路异常，底盘上层运动指令也会回到安全状态。
+
+### 调整方式
+
+```bash
+ros2 param get /joystick_bridge input_timeout_sec
+ros2 param set /joystick_bridge input_timeout_sec 0.3
+ros2 param get /joystick_bridge watchdog_hz
+```

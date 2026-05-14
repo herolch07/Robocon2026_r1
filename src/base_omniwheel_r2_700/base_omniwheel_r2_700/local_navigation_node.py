@@ -15,8 +15,10 @@ Local Navigation Node for R2 Omniwheel Base
 
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
 from std_msgs.msg import Float32MultiArray
 import numpy as np
+import time
 
 # 机械参数
 WHEEL_BASE_RADIUS = 0.327038  # 轮心到底盘中心距离 (m)
@@ -84,6 +86,13 @@ class LocalNavigationNode(Node):
     
     def __init__(self):
         super().__init__("local_navigation_node")
+
+        self.declare_parameter("command_timeout_sec", 0.3)
+        self.declare_parameter("watchdog_hz", 20.0)
+
+        self.last_command_time = 0.0
+        self.command_seen = False
+        self.timeout_stop_sent = False
         
         # 订阅高层指令
         self.subscription = self.create_subscription(
@@ -99,11 +108,15 @@ class LocalNavigationNode(Node):
             "damiao_control",
             10
         )
+
+        watchdog_hz = max(float(self.get_parameter("watchdog_hz").value), 1.0)
+        self.watchdog_timer = self.create_timer(1.0 / watchdog_hz, self.watchdog_callback)
         
         self.get_logger().info("Local Navigation Node initialized")
         self.get_logger().info(f"Wheel base radius: {WHEEL_BASE_RADIUS*1000:.2f} mm")
         self.get_logger().info(f"Omniwheel radius: {OMNIWHEEL_RADIUS_M*1000:.2f} mm")
         self.get_logger().info(f"Motor control mode: {DEFAULT_MOTOR_MODE} (VEL)")
+        self.get_logger().info(f"Command timeout: {self.get_parameter('command_timeout_sec').value}s")
     
     def driving_callback(self, msg):
         """
@@ -115,6 +128,10 @@ class LocalNavigationNode(Node):
         if len(msg.data) < 3:
             self.get_logger().warn(f"Invalid driving command: expected 3 values, got {len(msg.data)}")
             return
+
+        self.last_command_time = time.monotonic()
+        self.command_seen = True
+        self.timeout_stop_sent = False
         
         direction_rad = msg.data[0]
         plane_speed_cm = msg.data[1]
@@ -138,6 +155,28 @@ class LocalNavigationNode(Node):
             f"Driving cmd: dir={np.rad2deg(direction_rad):.1f}°, "
             f"v={plane_speed_cm:.1f}cm/s, ω={rotation_rad:.2f}rad/s"
         )
+
+    def watchdog_callback(self):
+        """
+        /local_driving 输入看门狗。
+
+        如果上游桥接节点停止发布，底盘不能继续保持上一条速度命令。
+        超时后这里会给 1-4 号轮子各发布一次 0 rad/s，底层 damiao_node
+        还有独立电机级 watchdog 作为最后防线。
+        """
+        if not self.command_seen:
+            return
+
+        timeout_sec = float(self.get_parameter("command_timeout_sec").value)
+        if time.monotonic() - self.last_command_time <= timeout_sec:
+            return
+
+        if not self.timeout_stop_sent:
+            self.publish_all_stop()
+            self.timeout_stop_sent = True
+            self.get_logger().warn(
+                f"No /local_driving for {timeout_sec:.2f}s; sent zero speed to base motors"
+            )
     
     def inverse_kinematics(self, direction_rad, plane_speed_m, rotation_rad):
         """
@@ -212,13 +251,28 @@ class LocalNavigationNode(Node):
         
         self.motor_publisher.publish(msg)
 
+    def publish_all_stop(self):
+        """向底盘 4 个轮子发布零速度命令。"""
+        for motor_id in WHEEL_ANGLES:
+            self.publish_motor_command(motor_id, 0.0)
+
 
 def main(args=None):
     rclpy.init(args=args)
     node = LocalNavigationNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        if rclpy.ok():
+            try:
+                node.publish_all_stop()
+            except Exception:
+                pass
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':
