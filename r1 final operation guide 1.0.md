@@ -326,8 +326,11 @@ D-pad 上: 水平电机加速档，0.2 -> 0.5 -> 1.0
 D-pad 下: 水平电机减速档，1.0 -> 0.5 -> 0.2
 R1: 夹爪正向
 L1: 夹爪反向
-B: pneumatic gripper OPEN -> [0,1]
-松开 B / 命令超时: pneumatic gripper CLOSE + height HIGH -> [1,1]
+B: pneumatic gripper OPEN，保持当前 height
+A: pneumatic height HIGH，并保持到按 X
+X: pneumatic height LOW，并保持到按 A
+启动默认 / A 之前: gripper CLOSE + height LOW -> [1,0]
+A 之后松开 B: gripper CLOSE + height HIGH -> [1,1]
 ```
 
 所有操作建议先小幅推动摇杆。
@@ -404,9 +407,12 @@ r1_arm_control controllers:
   -> 对应电机发布 0 rad/s
 
 arduino_pneumatic_driver:
-  B 按下时发布 /pneumatic_gripper_cmd = [0,1]
+  启动默认 safe_state = [1,0]，即 CLOSE + LOW
+  B 按下时发布 /pneumatic_gripper_cmd = [0,current_height]
+  A 按下后 height 锁定为 HIGH
+  X 按下后 height 锁定为 LOW
   超过 0.5s 没收到 /pneumatic_gripper_cmd
-  -> driver 向 Arduino 发送 safe_state [1,1]，即 CLOSE + HIGH
+  -> driver 向 Arduino 发送 safe_state
 ```
 
 查看参数：

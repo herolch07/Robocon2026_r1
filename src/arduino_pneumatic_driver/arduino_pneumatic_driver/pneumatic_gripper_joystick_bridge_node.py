@@ -2,7 +2,7 @@
 """
 Joystick bridge for the Arduino pneumatic gripper.
 
-This node maps one controller button to the pneumatic gripper open command.
+This node maps controller buttons to the required pneumatic gripper sequence.
 It contains no serial or hardware logic.
 """
 
@@ -16,19 +16,29 @@ from my_joystick_msgs.msg import Joystick
 
 class PneumaticGripperJoystickBridgeNode(Node):
     """
-    Convert joystick B button into a pneumatic gripper open command.
+    Convert joystick buttons into gripper open and height latch commands.
 
     Default mapping:
-      B: gripper open, D9 = 0, D8 = 1
+      B: gripper open, D9 = 0, keep current height
+      A: latch height high, D8 = 1
+      X: latch height low, D8 = 0
 
-    D8 is always kept HIGH. Closing is handled by the driver safe_state [1, 1]
-    after command timeout, or by manually publishing [1, 1].
+    Initial state is [1, 0]: gripper close, height low. After A is pressed,
+    height stays high until X is pressed. After X is pressed, height stays low
+    until A is pressed again.
     """
 
     def __init__(self):
         super().__init__("pneumatic_gripper_joystick_bridge_node")
 
-        self.declare_parameter("open_state", [0, 1])
+        self.declare_parameter("initial_height_state", 0)
+        self.declare_parameter("publish_hz", 20.0)
+
+        self.height_state = self.normalize_state(
+            self.get_parameter("initial_height_state").value
+        )
+        self.gripper_state = 1
+        self.height_latched = False
 
         self.joy_sub = self.create_subscription(
             Joystick,
@@ -38,29 +48,44 @@ class PneumaticGripperJoystickBridgeNode(Node):
         )
         self.cmd_pub = self.create_publisher(Int32MultiArray, "/pneumatic_gripper_cmd", 10)
 
+        publish_hz = max(float(self.get_parameter("publish_hz").value), 1.0)
+        self.publish_timer = self.create_timer(1.0 / publish_hz, self.publish_timer_callback)
+
         self.get_logger().info("Pneumatic gripper joystick bridge initialized")
-        self.get_logger().info("Mapping: B open gripper, D8 height kept HIGH")
+        self.get_logger().info("Mapping: B open gripper, A height high, X height low")
 
     def joystick_callback(self, msg):
         """
-        Publish the gripper-open command while B is pressed.
+        Update pneumatic state from joystick buttons.
 
-        The driver node keeps the safe behavior: if B commands stop arriving,
-        it returns to safe_state [1, 1], which means gripper CLOSE + height HIGH.
+        A latches height high. X latches height low. B opens the gripper while
+        it is held; releasing B closes the gripper while preserving height.
         """
-        if msg.b:
-            self.publish_state(self.get_state_parameter("open_state"))
+        if msg.a:
+            self.height_state = 1
+            self.height_latched = True
+        if msg.x:
+            self.height_state = 0
+            self.height_latched = True
+
+        self.gripper_state = 0 if msg.b else 1
+
+        if msg.b or msg.a or msg.x or self.height_latched:
+            self.publish_state([self.gripper_state, self.height_state])
 
     def normalize_state(self, value):
         """Convert any numeric state parameter to the relay protocol value 0 or 1."""
         return 1 if int(value) else 0
 
-    def get_state_parameter(self, name):
-        """Read a two-value relay state parameter and clamp values to 0/1."""
-        raw = list(self.get_parameter(name).value)
-        if len(raw) < 2:
-            return [1, 1]
-        return [self.normalize_state(raw[0]), self.normalize_state(raw[1])]
+    def publish_timer_callback(self):
+        """
+        Keep refreshing the latched height state after A or X is pressed.
+
+        This prevents the lower-level driver timeout from returning D8 to the
+        startup safe state once the match flow has selected a height state.
+        """
+        if self.height_latched:
+            self.publish_state([self.gripper_state, self.height_state])
 
     def publish_state(self, state):
         """Publish [D9_gripper_state, D8_height_state] to the serial driver node."""

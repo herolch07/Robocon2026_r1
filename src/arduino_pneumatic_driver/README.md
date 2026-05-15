@@ -53,6 +53,21 @@ Relay 2 -> D8: gripper height
 - 只保留 `B -> [0,1]`，用于打开 gripper。
 - 关闭与安全状态仍由 driver 的 `safe_state = [1,1]` 处理。
 
+### 2026-05-15 v5 初始低位，A 后高度永久高位
+
+- 默认 driver safe state 改为 `[1,0]`，即 gripper CLOSE + height LOW。
+- `B` 打开 gripper，保持当前 height。
+- `A` 将 height 锁定为 HIGH，即 D8=1。
+- A 之后 bridge 会持续刷新当前 `[D9,D8]`，防止 driver timeout 把 height 拉回 LOW。
+- A 之后仍可用 `B` 打开 gripper，松开 B 后 gripper CLOSE，但 height 保持 HIGH。
+
+### 2026-05-15 v6 增加 height LOW 锁定
+
+- `X` 将 height 锁定为 LOW，即 D8=0。
+- `A` 将 height 锁定为 HIGH，即 D8=1。
+- A/X 都是锁定状态，直到另一个高度按钮被按下。
+- `B` 仍然只控制 gripper OPEN，不改变 height。
+
 ## 适用范围
 
 本 package 适用于 Arduino Mega + USB Serial + 2 路 relay / solenoid valve 的 pneumatic gripper。它不绑定某一年比赛流程，也不包含战术状态机。
@@ -92,7 +107,7 @@ serial_timeout_sec = 0.1
 command_timeout_sec = 0.5
 watchdog_hz = 20.0
 reconnect_sec = 1.0
-safe_state = [1, 1]
+safe_state = [1, 0]
 ```
 
 ### pneumatic_gripper_joystick_bridge_node
@@ -108,13 +123,16 @@ safe_state = [1, 1]
 控制映射：
 
 ```text
-B: gripper OPEN -> [0,1]
+B: gripper OPEN, keep current height
+A: latch height HIGH
+X: latch height LOW
 ```
 
 参数：
 
 ```text
-open_state = [0, 1]
+initial_height_state = 0
+publish_hz = 20.0
 ```
 
 ## 超时保护
@@ -137,10 +155,10 @@ command_timeout_sec = 0.5 s
 
 ```text
 向 Arduino 发送 safe_state
-默认 safe_state = [1,1] = CLOSE
+默认启动 safe_state = [1,0] = CLOSE + LOW
 ```
 
-`pneumatic_gripper_joystick_bridge_node` 只在按下 B 时发布 `[0,1]`。如果 B 命令停止，`pneumatic_relay_driver_node` 会在 timeout 后发送 `[1,1]`，即 gripper CLOSE + height HIGH。
+默认启动后 safe state 是 `[1,0]`，即 gripper CLOSE + height LOW。按 A 后，bridge 会持续发布 height HIGH；按 X 后，bridge 会持续发布 height LOW。B 只临时打开 gripper，不改变 height。
 
 ## 最小测试
 

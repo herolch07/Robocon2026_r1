@@ -44,7 +44,7 @@ class PneumaticRelayDriverNode(Node):
         self.declare_parameter("command_timeout_sec", 0.5)
         self.declare_parameter("watchdog_hz", 20.0)
         self.declare_parameter("reconnect_sec", 1.0)
-        self.declare_parameter("safe_state", [1, 1])
+        self.declare_parameter("safe_state", [1, 0])
 
         self.serial_handle = None
         self.connected = False
@@ -153,7 +153,8 @@ class PneumaticRelayDriverNode(Node):
         Safety watchdog for command loss and serial reconnect.
 
         If no fresh command arrives within command_timeout_sec, send safe_state.
-        The default safe state is [1, 1], matching the Arduino sketch CLOSE state.
+        The default startup safe state is [1, 0]: gripper closed, height low.
+        Higher-level nodes may keep refreshing [1, 1] after the height is raised.
         """
         now = time.monotonic()
         if not self.connected and now - self.last_reconnect_attempt > float(

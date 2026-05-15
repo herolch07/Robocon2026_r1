@@ -12,11 +12,13 @@
 - [x] 分离 D9 gripper open/close 与 D8 height high/low 控制
 - [x] pneumatic joystick bridge 改为 20Hz 持续发布当前状态，避免 relay 闪烁
 - [x] 回退持续发布方案，只保留 B 控制 gripper open，D8 保持 HIGH
+- [x] 按新需求改为初始 height LOW，按 A 后 height HIGH 并保持
+- [x] 增加 X 锁定 height LOW，直到再次按 A
 
 ## 待完成
 
 - [ ] 增加 launch 文件和 YAML 参数文件
-- [ ] 根据真实 pneumatic 结构继续观察 `[1,1]` 作为 safe state 是否稳定
+- [ ] 根据真实 pneumatic 结构继续观察启动 `[1,0]` 与 A 后 `[1,1]` 的安全策略是否稳定
 - [ ] 增加 Arduino PING/PONG 心跳协议
 - [ ] 增加无硬件 serial mock 测试
 - [ ] 后续如 valve 数量增加，将 command message 升级为自定义 msg
