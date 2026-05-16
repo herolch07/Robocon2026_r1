@@ -2,6 +2,13 @@
 
 ## 📅 Changelog
 
+### v1.1.0 (2026-05-16)
+**降低右摇杆默认旋转速度**
+- `max_rotation` 默认值从 `2.0 rad/s` 降到 `1.0 rad/s`
+- 目的：降低右摇杆原地旋转灵敏度，方便和左摇杆平移一起联调
+- 接口不变，仍通过 `/local_driving` 发布 `[direction_rad, speed_cm/s, rotation_rad/s]`
+- `input_timeout_sec = 0.3 s` watchdog 安全行为不变
+
 ### v1.0.0 (2026-01-30)
 **初始版本：手柄到底盘控制桥接节点**
 - 实现手柄数据到全向底盘导航指令的转换
@@ -42,9 +49,11 @@
 ### 参数配置
 | 参数名 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `max_speed_cm` | float | 100.0 | 最大平移速度 (cm/s) |
-| `max_rotation` | float | 2.0 | 最大旋转速度 (rad/s) |
-| `deadzone` | int | 410 | 摇杆死区阈值 (对应 ±8192 范围) |
+| `max_speed_cm` | float | 40.0 | 最大平移速度 (cm/s) |
+| `max_rotation` | float | 1.0 | 最大旋转速度 (rad/s) |
+| `deadzone` | int | 6 | 摇杆死区阈值 (对应 ±128 范围) |
+| `input_timeout_sec` | float | 0.3 | `/joystick_data` 输入超时时间 (s) |
+| `watchdog_hz` | float | 20.0 | 输入 watchdog 检查频率 (Hz) |
 
 ---
 
@@ -103,8 +112,16 @@ ros2 run joystick_bridge joystick_bridge
 ```bash
 ros2 run joystick_bridge joystick_bridge --ros-args \
   -p max_speed_cm:=150.0 \
-  -p max_rotation:=3.0 \
+  -p max_rotation:=1.0 \
   -p deadzone:=500
+```
+
+低速联调示例：
+
+```bash
+ros2 run joystick_bridge joystick_bridge --ros-args \
+  -p max_speed_cm:=25.0 \
+  -p max_rotation:=0.5
 ```
 
 ### 方法 3：与其它节点一起启动

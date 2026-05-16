@@ -136,8 +136,9 @@ CAN-based VESC speed control.
 ### local_navigation_node Parameters
 - **wheel_base_radius_m**: Distance from wheel center to robot center (default: `0.327038 m`)
 - **omniwheel_radius_m**: Omniwheel radius (default: `0.0635 m`)
-- **lateral_axis_sign**: Lateral translation sign (default: `1.0`)
-  - Use `-1.0` if left/right translation direction is reversed after the base can strafe correctly
+- **lateral_axis_sign**: Lateral translation sign (default: `-1.0`)
+  - `-1.0`: current calibrated default, joystick left produces left strafe
+  - Use `1.0` if left/right translation direction is reversed on another hardware setup
 - **rotation_axis_sign**: Rotation command sign (default: `1.0`)
   - Use `-1.0` if pure rotation direction is reversed on hardware
 - **motor_direction_1** ~ **motor_direction_4**: Per-motor output sign (default: `[-1, 1, -1, 1]`)
@@ -401,17 +402,17 @@ ros2 param get /local_navigation_node lateral_coeff_4
 默认应该是：
 
 ```text
-lateral_axis_sign = 1.0
+lateral_axis_sign = -1.0
 lateral_coeff_1 = -1.0
 lateral_coeff_2 = -1.0
 lateral_coeff_3 = -1.0
 lateral_coeff_4 = -1.0
 ```
 
-如果已经可以横移，但左右方向刚好反了，可以改：
+如果在另一套硬件上左右方向刚好反了，可以改：
 
 ```bash
-ros2 param set /local_navigation_node lateral_axis_sign -1.0
+ros2 param set /local_navigation_node lateral_axis_sign 1.0
 ```
 
 如果只有某一个轮子方向异常，再单独调整对应电机方向：
