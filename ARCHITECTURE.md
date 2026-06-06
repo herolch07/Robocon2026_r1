@@ -679,3 +679,7 @@ ROS_LOCALHOST_ONLY=1
 ```
 
 R2 should use a different domain, for example `ROS_DOMAIN_ID=2`. This prevents R1 from discovering R2-only nodes such as `/damiao_motor_controller` and topics such as `/base/dummy_control`. See `ROS_DOMAIN_ISOLATION.md`.
+
+## 2026-06-06 Joystick Bridge 更新
+
+左摇杆平移链路当前使用固定默认上限 `150 cm/s` 和 `0.2x + 0.8x³` 混合曲线。START/SELECT 速度档逻辑已移除；右摇杆旋转和 watchdog 接口不变。

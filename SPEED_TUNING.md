@@ -385,3 +385,7 @@ ros2 topic list
 ```
 
 R1 speed tests must not be run while `/base/dummy_control` or `/damiao_motor_controller` from R2 is visible. Current controller speed levels are `10/20/40/60/100/150 cm/s`.
+
+## 2026-06-06 当前平移控制策略
+
+当前默认 `max_speed_cm = 150.0`，左摇杆采用 `y = 0.2x + 0.8x³`。START/SELECT 速度档已取消。本文较早章节中的 20/40/60/100/400 cm/s 手动调速命令属于历史调试记录。

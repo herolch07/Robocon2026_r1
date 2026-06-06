@@ -404,3 +404,7 @@ ROS_LOCALHOST_ONLY=1
 ```
 
 If `/damiao_motor_controller`, `/global_navigation_node`, `/base/dummy_control`, or `/arm/damiao_control` appears on R1, those entries are from another ROS2 graph and must be isolated before testing.
+
+## 2026-06-06 控制输入更新
+
+`/joystick_bridge` 将左摇杆幅度通过 `0.2x + 0.8x³` 映射到 `0..150 cm/s`。START/SELECT 当前不参与底盘调速。

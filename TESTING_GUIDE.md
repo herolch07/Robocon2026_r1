@@ -189,3 +189,7 @@ ros2 topic list
 ```
 
 R1 不应看到 R2 的 `/damiao_motor_controller`、`/global_navigation_node`、`/base/dummy_control`。如果看到，先不要测试底盘，按 `ROS_DOMAIN_ISOLATION.md` 处理。
+
+## 2026-06-06 混合曲线测试补充
+
+当前平移上限为 `150 cm/s`，曲线为 `0.2x + 0.8x³`。测试顺序应为离地检查，再在安全区域逐步测试 10%/25%/50%/75%/100% 推杆。START/SELECT 不再改变速度。

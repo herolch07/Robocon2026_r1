@@ -24,7 +24,6 @@ from rclpy.node import Node
 from rclpy.executors import ExternalShutdownException
 from my_joystick_msgs.msg import Joystick
 from std_msgs.msg import Float32MultiArray
-from rclpy.parameter import Parameter
 import math
 import time
 
@@ -46,21 +45,12 @@ class JoystickBridge(Node):
         super().__init__('joystick_bridge')
         
         # 声明参数（符合 AGENTS.md 2.2.4 规范）
-        self.declare_parameter('max_speed_cm', 20.0)
+        self.declare_parameter('max_speed_cm', 150.0)
         self.declare_parameter('max_rotation', 0.5)
         self.declare_parameter('deadzone', 24)
         self.declare_parameter('input_timeout_sec', 0.3)
         self.declare_parameter('watchdog_hz', 20.0)
-        self.declare_parameter('speed_levels_cm', [10.0, 20.0, 40.0, 60.0, 100.0, 150.0])
-        self.declare_parameter('speed_level_index', 0)
-
-        self.speed_levels_cm = self.load_speed_levels()
-        self.speed_level_index = self.clamp_speed_level_index(
-            int(self.get_parameter('speed_level_index').value)
-        )
-        self.last_start_pressed = False
-        self.last_select_pressed = False
-        self.sync_speed_level_parameters()
+        self.declare_parameter('translation_linear_weight', 0.2)
 
         self.last_joystick_time = 0.0
         self.joystick_seen = False
@@ -89,108 +79,39 @@ class JoystickBridge(Node):
         
         self.get_logger().info("Joystick bridge node initialized")
         self.get_logger().info(f"Max speed: {self.get_parameter('max_speed_cm').value} cm/s")
-        self.get_logger().info(f"Speed levels: {self.speed_levels_cm}, current index={self.speed_level_index}")
-        self.get_logger().info("Speed level buttons: START increases, SELECT decreases")
+        self.get_logger().info(
+            "Translation curve: y = a*x + (1-a)*x^3, "
+            f"a={self.get_parameter('translation_linear_weight').value}"
+        )
+        self.get_logger().info("START/SELECT chassis speed switching disabled")
         self.get_logger().info(f"Max rotation: {self.get_parameter('max_rotation').value} rad/s")
         self.get_logger().info(f"Deadzone: {self.get_parameter('deadzone').value}")
         self.get_logger().info(f"Input timeout: {self.get_parameter('input_timeout_sec').value}s")
         self.get_logger().info("✓ Dynamic parameter updates enabled")
 
-    def load_speed_levels(self):
-        """Load and sanitize chassis speed levels in cm/s.
-
-        The list is intentionally parameterized so match-day tuning can change
-        the available speed steps without editing the joystick mapping logic.
-        """
-        raw_levels = list(self.get_parameter('speed_levels_cm').value)
-        levels = sorted({float(level) for level in raw_levels if float(level) > 0.0})
-        return levels if levels else [20.0]
-
-    def clamp_speed_level_index(self, index):
-        """Clamp a requested speed level index to the available level list."""
-        return max(0, min(index, len(self.speed_levels_cm) - 1))
-
-    def sync_speed_level_parameters(self):
-        """Expose the active speed level through ROS parameters.
-
-        `max_speed_cm` remains the value used by the movement calculation, while
-        `speed_level_index` records which controller-selectable step is active.
-        """
-        self.speed_level_index = self.clamp_speed_level_index(self.speed_level_index)
-        self.set_parameters([
-            Parameter('speed_level_index', Parameter.Type.INTEGER, self.speed_level_index),
-            Parameter('max_speed_cm', Parameter.Type.DOUBLE, self.current_speed_level()),
-        ])
-
-    def current_speed_level(self):
-        """Return the currently active chassis translation speed in cm/s."""
-        return float(self.speed_levels_cm[self.speed_level_index])
-
-    def update_speed_level_from_buttons(self, msg):
-        """Use START/SELECT rising edges to change chassis speed level.
-
-        START and SELECT are unused by the other current R1 controller mappings,
-        so they can adjust driving speed without interfering with mechanisms.
-        """
-        start_pressed = bool(msg.start)
-        select_pressed = bool(msg.select)
-
-        if start_pressed and not self.last_start_pressed:
-            self.change_speed_level(1)
-        if select_pressed and not self.last_select_pressed:
-            self.change_speed_level(-1)
-
-        self.last_start_pressed = start_pressed
-        self.last_select_pressed = select_pressed
-
-    def change_speed_level(self, delta):
-        """Move to a different speed level and publish it as max_speed_cm."""
-        old_index = self.speed_level_index
-        self.speed_level_index = self.clamp_speed_level_index(old_index + delta)
-        if self.speed_level_index == old_index:
-            return
-
-        self.sync_speed_level_parameters()
-        self.get_logger().info(
-            f"Base speed level: {self.speed_level_index + 1}/{len(self.speed_levels_cm)} "
-            f"= {self.current_speed_level():.1f} cm/s"
-        )
-    
     def parameter_callback(self, params):
-        """运行时参数更新回调。
-
-        START/SELECT 使用内部 speed_levels_cm 列表切换速度，所以当用户通过
-        ros2 param set 修改速度档位或索引时，也要同步内部状态。
-        """
+        """Validate runtime tuning parameters before accepting an update."""
         from rcl_interfaces.msg import SetParametersResult
 
         for param in params:
-            if param.name == 'speed_levels_cm':
-                try:
-                    levels = sorted({float(level) for level in param.value if float(level) > 0.0})
-                except (TypeError, ValueError):
+            if param.name == 'max_speed_cm' and float(param.value) <= 0.0:
+                return SetParametersResult(
+                    successful=False,
+                    reason='max_speed_cm must be greater than 0',
+                )
+            if param.name == 'translation_linear_weight':
+                weight = float(param.value)
+                if not 0.0 <= weight <= 1.0:
                     return SetParametersResult(
                         successful=False,
-                        reason='speed_levels_cm must be a list of positive numbers',
+                        reason='translation_linear_weight must be in [0.0, 1.0]',
                     )
-                if not levels:
-                    return SetParametersResult(
-                        successful=False,
-                        reason='speed_levels_cm must contain at least one positive speed',
-                    )
-                self.speed_levels_cm = levels
-                self.speed_level_index = self.clamp_speed_level_index(self.speed_level_index)
-
-            elif param.name == 'speed_level_index':
-                self.speed_level_index = self.clamp_speed_level_index(int(param.value))
-
             if param.name in [
                 'max_speed_cm',
                 'max_rotation',
                 'deadzone',
                 'input_timeout_sec',
-                'speed_levels_cm',
-                'speed_level_index',
+                'translation_linear_weight',
             ]:
                 self.get_logger().info(f"Parameter updated: {param.name} = {param.value}")
 
@@ -207,8 +128,6 @@ class JoystickBridge(Node):
         self.joystick_seen = True
         self.timeout_stop_sent = False
 
-        self.update_speed_level_from_buttons(msg)
-
         # 从手柄读取数据
         lx = msg.lx  # 左摇杆 X
         ly = msg.ly  # 左摇杆 Y
@@ -218,6 +137,7 @@ class JoystickBridge(Node):
         max_speed_cm = self.get_parameter('max_speed_cm').value
         max_rotation = self.get_parameter('max_rotation').value
         deadzone = self.get_parameter('deadzone').value
+        linear_weight = float(self.get_parameter('translation_linear_weight').value)
         
         # 应用死区过滤
         if abs(lx) < deadzone:
@@ -240,7 +160,14 @@ class JoystickBridge(Node):
             # 计算速度大小并限幅到 0-100%。斜向推杆时 lx/ly 同时接近满量程，
             # 如果不限幅，sqrt(lx^2 + ly^2) 会超过 AXIS_MAX。
             magnitude = min(math.sqrt(lx*lx + ly*ly) / AXIS_MAX, 1.0)
-            speed_cm = magnitude * max_speed_cm
+
+            # 混合三次曲线在中心区域提供低速精细控制，同时保留满杆最高速度。
+            # linear_weight=1.0 为线性；0.0 为纯三次；默认 0.2。
+            curved_magnitude = (
+                linear_weight * magnitude
+                + (1.0 - linear_weight) * magnitude ** 3
+            )
+            speed_cm = curved_magnitude * max_speed_cm
         
         # 计算旋转速度
         rotation = (rx / AXIS_MAX) * max_rotation

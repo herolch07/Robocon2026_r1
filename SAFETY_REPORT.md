@@ -130,3 +130,7 @@ ROS_LOCALHOST_ONLY=1
 ```
 
 如果 R1 看到 `/damiao_motor_controller`、`/base/dummy_control` 或 `/global_navigation_node`，应视为 ROS graph 被其它机器人污染，禁止继续底盘测试。
+
+## 2026-06-06 平移曲线更新
+
+当前 `joystick_bridge` 默认上限为 `150 cm/s`，使用 `0.2x + 0.8x³` 混合三次曲线。输入 watchdog 和 `local_navigation_node` 轮速加速度限制不变。START/SELECT 不再切换速度档。

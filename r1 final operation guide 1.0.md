@@ -4,7 +4,7 @@
 
 - 手柄必须使用 X 模式。
 - 手柄数据范围是 `-512 ~ 512`，比旧版 `8192` 更容易读。
-- `joystick_bridge` 启动默认平移速度档是 `20 cm/s`，可用 START 逐级升到 `150 cm/s`。
+- `joystick_bridge` 默认最大平移速度为 `150 cm/s`，使用 `0.2x + 0.8x³` 混合曲线；START/SELECT 不再调速。
 - 全向轮半径按 `63.5 mm` 换算电机速度。
 - Motor 5 是机械臂升降电机。
 - Motor 6 是机械臂水平移动电机。
@@ -291,15 +291,16 @@ ros2 topic echo /kfs_staff_gripper_status
 ros2 topic echo /pneumatic_gripper_status
 ```
 
-## 5. 调速度
+## 5. 平移速度曲线
 
 默认：
 
 ```text
-max_speed_cm = 20.0
+max_speed_cm = 150.0
+translation_linear_weight = 0.2
+translation curve = 0.2x + 0.8x^3
 max_rotation = 0.5
 deadzone = 24
-speed_levels_cm = [10, 20, 40, 60, 100, 150]
 max_wheel_speed_rad_s = 64.0
 ```
 
@@ -307,25 +308,12 @@ max_wheel_speed_rad_s = 64.0
 
 ```bash
 ros2 param get /joystick_bridge max_speed_cm
+ros2 param get /joystick_bridge translation_linear_weight
 ros2 param get /joystick_bridge max_rotation
 ros2 param get /joystick_bridge deadzone
 ```
 
-设置：
-
-```bash
-ros2 param set /joystick_bridge max_speed_cm 40.0
-ros2 param set /joystick_bridge max_rotation 1.0
-```
-
-更快：
-
-```bash
-ros2 param set /joystick_bridge max_speed_cm 60.0
-ros2 param set /joystick_bridge max_rotation 1.5
-```
-
-速度调高前仍建议先低速试车，确认底盘响应正常。
+START/SELECT 当前不用于调速。平移目标上限固定默认为 `150 cm/s`；左摇杆小幅推动时由混合三次曲线降低输出，满杆仍达到目标上限。第一次实机测试应先离地检查，再在安全区域小幅推杆。
 
 ## 6. 控制方式
 
@@ -338,8 +326,7 @@ L2: 升降电机反向
 D-pad 左/右: 水平电机左/右移动
 D-pad 上: 水平电机加速档，0.2 -> 0.5 -> 1.0
 D-pad 下: 水平电机减速档，1.0 -> 0.5 -> 0.2
-START: 底盘平移速度升档，10 -> 20 -> 40 -> 60 -> 100 -> 150 cm/s
-SELECT: 底盘平移速度降档
+START/SELECT: 当前不用于底盘调速
 R1: 夹爪正向
 L1: 夹爪反向
 B: arm pneumatic gripper OPEN，松开后 CLOSE
@@ -505,8 +492,7 @@ L2: Motor 5 elevator 反向
 D-pad 左/右: Motor 6 horizontal 左/右移动
 D-pad 上: Motor 6 horizontal power level 增加，0.2 -> 0.5 -> 1.0
 D-pad 下: Motor 6 horizontal power level 减少，1.0 -> 0.5 -> 0.2
-START: 底盘平移速度升档，10 -> 20 -> 40 -> 60 -> 100 -> 150 cm/s
-SELECT: 底盘平移速度降档
+START/SELECT: 当前不用于底盘调速
 R1: Motor 7 arm gripper 正向
 L1: Motor 7 arm gripper 反向
 B: arm pneumatic gripper OPEN，松开后 CLOSE

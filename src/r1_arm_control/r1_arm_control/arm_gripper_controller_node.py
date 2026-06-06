@@ -22,7 +22,7 @@ class ArmGripperControllerNode(Node):
         super().__init__("arm_gripper_controller_node")
 
         self.declare_parameter("motor_id", 7)
-        self.declare_parameter("max_speed_rad_s", 1.0)
+        self.declare_parameter("max_speed_rad_s", 1.3)
         self.declare_parameter("timeout_sec", 0.3)
         self.declare_parameter("publish_hz", 20.0)
         self.declare_parameter("max_accel_rad_s2", 0.0)

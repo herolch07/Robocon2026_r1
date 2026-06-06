@@ -94,7 +94,7 @@ r1_control
 R2 / L2: Motor 5 升降正/反向
 D-pad 左/右: Motor 6 水平移动
 D-pad 上/下: Motor 6 水平移动速度档 0.2 / 0.5 / 1.0
-START/SELECT: 底盘平移速度档位升/降，10/20/40/60/100/150 cm/s
+START/SELECT: 不用于底盘调速；用于 Motor 7 高速档加/减 0.1 rad/s
 R1 / L1: Motor 7 机械夹爪正/反向
 B: arm pneumatic gripper OPEN while held，松开 CLOSE
 A: arm pneumatic height LOW latch
@@ -133,7 +133,7 @@ ros2 topic echo /kfs_staff_gripper_status
 ## 7. 当前重要默认值
 
 ```text
-joystick_bridge max_speed_cm = 20.0
+joystick_bridge max_speed_cm = 150.0
 joystick_bridge max_rotation = 0.5
 joystick_bridge input_timeout_sec = 0.3
 local_navigation_node command_timeout_sec = 0.3
@@ -142,14 +142,14 @@ damiao_node command_timeout_sec = 0.5
 pneumatic safe_state = [0,1]
 ```
 
-如需临时调高底盘速度：
+当前底盘平移不使用速度档。查看混合曲线参数：
 
 ```bash
-ros2 param set /joystick_bridge max_speed_cm 40.0
-ros2 param set /joystick_bridge max_rotation 1.0
+ros2 param get /joystick_bridge max_speed_cm
+ros2 param get /joystick_bridge translation_linear_weight
 ```
 
-先低速确认方向，再逐步提高速度。
+默认应为 `150.0` 和 `0.2`。首次实机测试仍应小幅推动摇杆。
 
 ## ROS2 domain check
 

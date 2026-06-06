@@ -2,6 +2,15 @@
 
 ## 📅 Changelog
 
+### v1.6.0 (2026-06-06)
+**固定 150 cm/s + 混合三次平移曲线**
+- `max_speed_cm` 默认改为 `150.0 cm/s`。
+- 左摇杆平移幅度使用 `y = 0.2x + 0.8x³`，其中 `x` 为归一化摇杆幅度。
+- 移除 START/SELECT 底盘速度档切换；两个按钮当前不参与底盘控制。
+- 新增参数 `translation_linear_weight = 0.2`，允许在 `0.0..1.0` 范围调节曲线。
+- 右摇杆旋转仍为线性映射，`max_rotation = 0.5 rad/s`。
+- `/joystick_data` timeout watchdog 和底层 `max_wheel_accel_rad_s2` 不变。
+
 ### v1.5.0 (2026-05-28)
 **确认 R1/R2 ROS domain 混线后恢复 150 cm/s 默认最高档**
 - 已确认异常根因是 R1 能看到 R2 的 ROS2 node / topic，而不是 joystick `128/512` 映射。
@@ -76,13 +85,12 @@
 ### 参数配置
 | 参数名 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `max_speed_cm` | float | 20.0 | 最大平移速度 (cm/s) |
+| `max_speed_cm` | float | 150.0 | 满杆最大平移目标速度 (cm/s) |
 | `max_rotation` | float | 0.5 | 最大旋转速度 (rad/s) |
 | `deadzone` | int | 24 | 摇杆死区阈值 (对应 ±512 范围) |
 | `input_timeout_sec` | float | 0.3 | `/joystick_data` 输入超时时间 (s) |
 | `watchdog_hz` | float | 20.0 | 输入 watchdog 检查频率 (Hz) |
-| `speed_levels_cm` | double[] | `[10, 20, 40, 60, 100, 150]` | START/SELECT 可切换的底盘速度档位 (cm/s) |
-| `speed_level_index` | int | 0 | 当前速度档位索引，0 表示最低档 |
+| `translation_linear_weight` | float | 0.2 | 混合曲线线性权重，范围 `0.0..1.0` |
 
 ---
 
@@ -93,17 +101,18 @@
 - **Y 轴 (ly)**: 控制平移速度大小（-512 到 512）
 - **映射关系**:
   - 方向角 = atan2(lx, -ly) （注意 Y 轴取反）
-  - 速度大小 = min(sqrt(lx² + ly²) / 512, 1.0) × max_speed
+  - 原始幅度 `x = min(sqrt(lx² + ly²) / 512, 1.0)`
+  - 曲线幅度 `y = 0.2x + 0.8x³`
+  - 速度 `speed = y × 150 cm/s`
 
 ### 右摇杆 (rx)
 - **X 轴 (rx)**: 控制旋转速度（-512 到 512）
 - **映射关系**: rotation = rx / 512 × max_rotation
 
 ### START / SELECT
-- **START**: 升高底盘平移速度档位
-- **SELECT**: 降低底盘平移速度档位
-- 默认档位: `[10, 20, 40, 60, 100, 150] cm/s`
-- 当前档位会同步到参数 `max_speed_cm`，可用 `ros2 param get /joystick_bridge max_speed_cm` 查看
+- 当前不用于底盘速度切换。
+- 底盘平移上限默认固定为 `150 cm/s`。
+- 低速精细控制由左摇杆混合三次曲线提供。
 
 ### 死区处理
 当摇杆绝对值小于 `deadzone` 时，视为回中状态：
@@ -147,16 +156,15 @@ ros2 run joystick_bridge joystick_bridge
 ```bash
 ros2 run joystick_bridge joystick_bridge --ros-args \
   -p max_speed_cm:=150.0 \
-  -p max_rotation:=1.0 \
+  -p translation_linear_weight:=0.2 \
+  -p max_rotation:=0.5 \
   -p deadzone:=24
 ```
 
-低速联调示例：
+曲线调节示例（`1.0` 为完全线性，`0.0` 为纯三次）：
 
 ```bash
-ros2 run joystick_bridge joystick_bridge --ros-args \
-  -p max_speed_cm:=10.0 \
-  -p max_rotation:=0.25
+ros2 param set /joystick_bridge translation_linear_weight 0.3
 ```
 
 ### 方法 3：与其它节点一起启动
@@ -223,7 +231,7 @@ ros2 run joystick_bridge joystick_bridge --ros-args --log-level debug
 
 **日志输出：**
 ```text
-[DEBUG] Joy: lx=256, ly=-512, rx=0 -> Nav: dir=26.6deg, speed=20.0cm/s, rot=0.00rad/s
+[DEBUG] Joy: lx=256, ly=-512, rx=0 -> Nav: dir=26.6deg, speed=150.0cm/s, rot=0.00rad/s
 [WARN] Invalid joystick command: expected Joystick message fields
 ```
 
@@ -232,8 +240,8 @@ ros2 run joystick_bridge joystick_bridge --ros-args --log-level debug
 ## 📋 未来改进计划
 
 ### 已完成功能
-- [x] 支持 START/SELECT 按键切换底盘速度档位
-- [x] 添加 10/20/40/60/100/150 cm/s 速度档位调节
+- [x] 历史版本支持 START/SELECT 速度档；v1.6.0 已取消
+- [x] 固定默认上限 150 cm/s，并使用混合三次曲线提供低速控制
 
 ### 已规划功能
 - [ ] 支持紧急停止按钮映射
@@ -322,3 +330,24 @@ ros2 param get /joystick_bridge speed_level_index
 ```
 
 注意：`150 cm/s` 是当前 controller 默认最高档。`200/400 cm/s` 仍可通过参数临时测试，但不再作为默认按钮档位；`local_navigation_node max_wheel_speed_rad_s` 保持 `64.0 rad/s`。
+
+## 2026-06-06 - v1.6.0 当前控制方式
+
+```text
+max_speed_cm = 150.0 cm/s
+translation_linear_weight = 0.2
+曲线: y = 0.2x + 0.8x^3
+START/SELECT: 不再调整底盘速度
+```
+
+摇杆幅度和目标速度示例：
+
+| 摇杆幅度 | 输出速度 |
+|---:|---:|
+| 10% | 3.12 cm/s |
+| 25% | 9.38 cm/s |
+| 50% | 30.00 cm/s |
+| 75% | 73.13 cm/s |
+| 100% | 150.00 cm/s |
+
+`input_timeout_sec = 0.3 s` watchdog 不变；超时后仍发布 `/local_driving = [0,0,0]`。

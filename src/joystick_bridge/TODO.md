@@ -59,3 +59,14 @@
 - [x] 将默认速度档位设置为 10/20/40/60/100/150 cm/s
 - [x] 保持 `local_navigation_node max_wheel_speed_rad_s = 64.0 rad/s` 不变
 - [ ] 在 `ROS_DOMAIN_ID=1`、`ROS_LOCALHOST_ONLY=1` 下复测 100/150 cm/s 连续运行
+
+## 2026-06-06 固定 150 cm/s 混合三次曲线
+
+- [x] `max_speed_cm` 默认改为 `150.0 cm/s`
+- [x] 新增 `translation_linear_weight = 0.2`
+- [x] 平移曲线实现 `y = 0.2x + 0.8x³`
+- [x] 移除 START/SELECT 速度档切换逻辑
+- [x] 保持右摇杆旋转为线性映射
+- [x] 保持 joystick input watchdog 与轮速 acceleration limit 不变
+- [ ] R1 离地测试 10%/25%/50%/75%/100% 摇杆幅度
+- [ ] R1 落地低风险区域测试起步摩擦和中段手感

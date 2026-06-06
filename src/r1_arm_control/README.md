@@ -17,6 +17,13 @@ R1 机械臂控制 package。当前用于控制速度型达妙电机执行机构
 - 所有 controller 均包含 `timeout_sec` 失效保护。
 - 夹爪默认速度降为 `1.0 rad/s`，避免动作过快。
 
+### 2026-06-07 v2 Motor 7 两段式速度
+
+- `R1/L1` 按住前 `0.5 s` 使用 `0.3 rad/s`。
+- 持续按住超过 `0.5 s` 后切换到高速档，默认 `1.3 rad/s`。
+- `START (+)` / `SELECT (-)` 以 `0.1 rad/s` 调整高速档。
+- 高速档限制在 `0.3 ~ 1.3 rad/s`。
+
 ## 适用范围
 
 本 package 适用于 R1 当前机械臂的速度控制执行机构。node 绑定的是“升降 / 水平 / 夹爪”这类机构职责，不绑定某一年比赛流程或战术状态机。
@@ -98,7 +105,7 @@ data[0] = target speed, rad/s
 
 ```text
 motor_id = 7
-max_speed_rad_s = 1.0
+max_speed_rad_s = 1.3
 timeout_sec = 0.3
 publish_hz = 20.0
 max_accel_rad_s2 = 0.0
@@ -126,10 +133,23 @@ D-pad 下: 降低速度档 1.0 -> 0.5 -> 0.2
 ### arm_gripper_joystick_bridge_node
 
 ```text
-R1: 夹爪正向
-L1: 夹爪反向
+R1: 夹爪正向，前 0.5s 为 0.3 rad/s，之后进入高速档
+L1: 夹爪反向，前 0.5s 为 0.3 rad/s，之后进入高速档
 R1 + L1: 停止
+START (+): 高速档增加 0.1 rad/s
+SELECT (-): 高速档降低 0.1 rad/s
 发布: /arm_gripper_speed_cmd
+```
+
+参数：
+
+```text
+slow_speed_rad_s = 0.3
+fast_speed_rad_s = 1.3
+hold_threshold_sec = 0.5
+speed_adjust_step_rad_s = 0.1
+min_fast_speed_rad_s = 0.3
+max_fast_speed_rad_s = 1.3
 ```
 
 ## 超时保护

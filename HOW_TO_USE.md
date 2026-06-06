@@ -57,9 +57,11 @@ R2: Motor 5 elevator 正向
 L2: Motor 5 elevator 反向
 D-pad 左/右: Motor 6 horizontal 左/右移动
 D-pad 上/下: Motor 6 horizontal power level 增加/减少
-START/SELECT: 底盘平移速度档位升/降，10/20/40/60/100/150 cm/s
-R1: Motor 7 arm gripper 正向
-L1: Motor 7 arm gripper 反向
+START/SELECT: 当前不用于底盘调速
+R1: Motor 7 arm gripper 正向，前 0.5s 为 0.3 rad/s，之后进入高速档
+L1: Motor 7 arm gripper 反向，前 0.5s 为 0.3 rad/s，之后进入高速档
+START (+): Motor 7 高速档增加 0.1 rad/s
+SELECT (-): Motor 7 高速档降低 0.1 rad/s
 B: arm pneumatic gripper OPEN while held，松开 CLOSE
 A: arm pneumatic height LOW latch
 X: arm pneumatic height HIGH latch
@@ -67,12 +69,14 @@ Y: KFS staff gripper OPEN，松开 CLOSE
 R3: 当前不使用
 ```
 
-## 调整底盘速度
+## 底盘速度曲线
 
-当前默认是低速联调值：
+当前默认配置：
 
 ```text
-max_speed_cm = 20.0
+max_speed_cm = 150.0
+translation_linear_weight = 0.2
+translation curve = 0.2x + 0.8x^3
 max_rotation = 0.5
 ```
 
@@ -80,17 +84,11 @@ max_rotation = 0.5
 
 ```bash
 ros2 param get /joystick_bridge max_speed_cm
+ros2 param get /joystick_bridge translation_linear_weight
 ros2 param get /joystick_bridge max_rotation
 ```
 
-临时提高：
-
-```bash
-ros2 param set /joystick_bridge max_speed_cm 40.0
-ros2 param set /joystick_bridge max_rotation 1.0
-```
-
-这些参数是运行时临时值，重启 `joystick_bridge` 后会回到源码默认值。
+START/SELECT 当前不用于底盘调速。左摇杆小幅推动由混合三次曲线产生低速输出，推满时达到 `150 cm/s` 目标上限。
 
 ## 安全保护
 

@@ -9,6 +9,7 @@
 - [x] 实现 L2/R2 控制升降
 - [x] 实现 D-pad 控制水平移动和速度档位
 - [x] 实现 L1/R1 控制夹爪
+- [x] Motor 7 支持 0.5s 两段式速度及 START/SELECT 高速档调节
 - [x] 三个 controller 均实现 `timeout_sec` 安全归零
 - [x] 新增 README，记录 topic、参数、timeout 行为和启动方式
 
