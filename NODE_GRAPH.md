@@ -408,3 +408,16 @@ If `/damiao_motor_controller`, `/global_navigation_node`, `/base/dummy_control`,
 ## 2026-06-06 控制输入更新
 
 `/joystick_bridge` 将左摇杆平移映射到 `0..150 cm/s`，右摇杆旋转映射到 `-1.2..1.2 rad/s`；两者均使用 `0.1x + 0.9x³`。START/SELECT 当前不参与底盘调速。
+
+## 2026-06-07 Damiao 恢复状态 Topic
+
+```mermaid
+flowchart LR
+    Feedback[Motor 1-7 CAN feedback] --> Driver[/motor_controller_node]
+    Driver --> Status[/damiao_motor_status]
+    Driver --> Gate{RECOVERING or WAIT_NEUTRAL?}
+    Gate -->|Yes| Zero[only 0 rad/s]
+    Gate -->|READY| Command[allow /damiao_control]
+```
+
+`/damiao_motor_status` 类型为 `std_msgs/msg/Float32MultiArray`，格式为 `[motor_id, state_code, feedback_fresh, is_enabled, feedback_age_sec, recovery_attempts, neutral_received]`。

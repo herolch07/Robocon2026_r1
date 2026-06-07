@@ -90,3 +90,17 @@
 - [x] R1 启动脚本固定 `ROS_DOMAIN_ID=1`、`ROS_LOCALHOST_ONLY=1`
 - [x] controller 默认最高档设置为 `150 cm/s` 路线
 - [ ] 隔离环境下复测底盘持续 hold 左摇杆稳定性
+
+## 2026-06-07 急停断电自动恢复
+
+- [x] 为 Motor 1-7 记录最后反馈时间和 `isEnable`
+- [x] 反馈超时或失能时进入 `RECOVERING`
+- [x] 恢复期间只发送 `0 rad/s`，阻止非零命令
+- [x] 每 `2.0 s` 自动发送 `VEL mode + enable + zero`
+- [x] 收到已使能反馈后进入 `WAIT_NEUTRAL`
+- [x] 要求手柄/上游回中一次后才进入 `READY`
+- [x] USB-CAN 串口改为低频无限重连
+- [x] 新增 `/damiao_motor_status` 恢复状态 topic
+- [x] 增加无硬件恢复状态机测试
+- [x] 实机架空测试急停按下超过 10 秒后自动恢复
+- [x] 实机确认急停释放时保持摇杆非零不会立即驱动电机

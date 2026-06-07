@@ -195,3 +195,7 @@ R1 不应看到 R2 的 `/damiao_motor_controller`、`/global_navigation_node`、
 ## 2026-06-06 混合曲线测试补充
 
 当前平移上限为 `150 cm/s`，旋转上限为 `1.2 rad/s`，两者曲线均为 `0.1x + 0.9x³`。Motor 7 最大 `1.3 rad/s`，R2/L2 也使用同一曲线。测试顺序应为离地检查，再在安全区域逐步测试 10%/25%/50%/75%/100% 输入。START/SELECT 不再改变底盘速度。
+
+## 2026-06-07 急停自动恢复测试
+
+仅在底盘架空时测试。启动后监控 `ros2 topic echo /damiao_motor_status`，按下急停超过 10 秒，再释放急停且保持手柄回中。预期状态 `RECOVERING(0) -> WAIT_NEUTRAL(1) -> READY(2)`，无需重启 bash。释放急停时故意保持摇杆非零，电机必须保持零速；松杆回中后才可解锁。

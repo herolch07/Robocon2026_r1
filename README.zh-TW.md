@@ -142,3 +142,7 @@ ROS_LOCALHOST_ONLY=1
 ```
 
 這樣可以避免 R1 發現 R2 的 `/damiao_motor_controller`、`/global_navigation_node`、`/base/dummy_control` 等 node/topic。修改前請先閱讀 `ROS_DOMAIN_ISOLATION.md`。
+
+## 達妙馬達急停自動恢復
+
+馬達回饋逾時或失能後，driver 每 2 秒自動發送 `VEL + enable + zero`，並阻止非零命令。收到已使能回饋且手掣回中一次後才恢復運動。監控 `/damiao_motor_status`：`0=RECOVERING`、`1=WAIT_NEUTRAL`、`2=READY`、`3=DISABLED`。

@@ -86,7 +86,7 @@ tmux new-window -t "$SESSION:12" -n "kfs_bridge" \
     "$BASE_CMD && ros2 run kfs_staff_gripper kfs_staff_gripper_joystick_bridge_node; exec bash"
 
 tmux new-window -t "$SESSION:13" -n "monitor" \
-    "$BASE_CMD && echo 'Monitor commands:' && echo 'ros2 node list' && echo 'ros2 topic echo /joystick_data' && echo 'ros2 topic echo /local_driving' && echo 'ros2 topic echo /elevator_speed_cmd' && echo 'ros2 topic echo /horizontal_speed_cmd' && echo 'ros2 topic echo /arm_gripper_speed_cmd' && echo 'ros2 topic echo /pneumatic_gripper_cmd' && echo 'ros2 topic echo /kfs_staff_gripper_cmd' && echo 'ros2 topic echo /kfs_staff_gripper_status' && echo 'ros2 topic echo /damiao_control' && echo 'ros2 param get /joystick_bridge max_speed_cm' && exec bash"
+    "$BASE_CMD && echo 'Monitor commands:' && echo 'ros2 node list' && echo 'ros2 topic echo /joystick_data' && echo 'ros2 topic echo /local_driving' && echo 'ros2 topic echo /elevator_speed_cmd' && echo 'ros2 topic echo /horizontal_speed_cmd' && echo 'ros2 topic echo /arm_gripper_speed_cmd' && echo 'ros2 topic echo /pneumatic_gripper_cmd' && echo 'ros2 topic echo /kfs_staff_gripper_cmd' && echo 'ros2 topic echo /kfs_staff_gripper_status' && echo 'ros2 topic echo /damiao_control' && echo 'ros2 topic echo /damiao_motor_status' && echo 'ros2 param get /joystick_bridge max_speed_cm' && exec bash"
 
 tmux select-window -t "$SESSION:13"
 

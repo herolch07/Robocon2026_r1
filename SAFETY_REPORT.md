@@ -136,3 +136,7 @@ ROS_LOCALHOST_ONLY=1
 ## 2026-06-06 平移曲线更新
 
 当前 `joystick_bridge` 平移上限为 `150 cm/s`、旋转上限为 `1.2 rad/s`，两者均使用 `0.1x + 0.9x³`。Motor 7 最大 `1.3 rad/s`，R2/L2 净输入也使用同一曲线。输入 watchdog 和 `local_navigation_node` 轮速加速度限制不变。
+
+## 2026-06-07 电机断电恢复保护
+
+`damiao_node` 增加反馈 watchdog：`feedback_timeout_sec = 0.5 s`。反馈超时或 `isEnable = false` 后，电机进入 `RECOVERING`，非零命令被阻止，并每 `recovery_retry_sec = 2.0 s` 自动发送 `VEL mode + enable + 0 rad/s`。收到已使能反馈后仍需一次零速回中才进入 `READY`。状态通过 `/damiao_motor_status` 发布。该机制用于急停切断电机分电板但 USB-CAN 仍保持在线的情况。

@@ -4,6 +4,14 @@ ROS 2 motor control package for R2 omniwheel base.
 
 ## Changelog
 
+### 2026-06-07 - v11 急停断电自动恢复与回中解锁
+- `damiao_node` 记录每台 Motor 1-7 的最后反馈时间和使能状态。
+- 反馈超过 `feedback_timeout_sec = 0.5 s` 未更新，或反馈显示 `isEnable = false` 时，该电机进入 `RECOVERING`。
+- `RECOVERING` 期间只发送 `0 rad/s`，每 `recovery_retry_sec = 2.0 s` 自动重发 `VEL mode + enable + zero`，不会转发手柄非零命令。
+- 收到新鲜的已使能反馈后进入 `WAIT_NEUTRAL`；必须先收到一次零速命令，才进入 `READY` 并恢复运动。
+- USB-CAN 串口真的消失时改为低频无限重连；无需因为旧版 5 次上限重启 bash。
+- 新增 `/damiao_motor_status`，用于查看每台电机恢复状态、反馈新鲜度和重试次数。
+
 ### 2026-05-16 - v4 横向平移修正与参数化
 - **Local Navigation Node**: 将理想 45° 公式改为实机校准运动基底
   - 保持前进/后退的 `forward` 轮速组合不变
@@ -110,8 +118,10 @@ Older notes mention `vesc_node` and `vesc_canbus_speed_control_node`. They are n
   - Subscribed by: `damiao_node`
 
 ### Published Topics
-- **damiao_status** (Float32MultiArray): Motor status feedback
+- **/damiao_motor_status** (`std_msgs/msg/Float32MultiArray`): 每台电机恢复状态
   - Published by: `damiao_node`
+  - Format: `[motor_id, state_code, feedback_fresh, is_enabled, feedback_age_sec, recovery_attempts, neutral_received]`
+  - `state_code`: `0=RECOVERING`, `1=WAIT_NEUTRAL`, `2=READY`, `3=DISABLED`
 
 ## Node Architecture
 
@@ -134,11 +144,15 @@ Older notes mention `vesc_node` and `vesc_canbus_speed_control_node`. They are n
 ## Parameters
 
 ### damiao_node Parameters
-- **DEFAULT_CONTROL_MODE**: Default is `VEL` (mode 3, pure velocity control)
-  - Can be changed in `damiao_node.py` line 11
-  - Available modes: `Control_Type.MIT` (1), `Control_Type.POS_VEL` (2), `Control_Type.VEL` (3)
-- **RECONNECT_INTERVAL**: Auto-reconnection check interval (default: 2.0 seconds)
-- **RECONNECT_MAX_ATTEMPTS**: Max reconnection attempts (default: 5, set to 0 for infinite)
+- **motor_ids**: 受控电机 ID，默认 `[1, 2, 3, 4, 5, 6, 7]`。
+- **command_timeout_sec**: 连续 VEL 命令超时，默认 `0.5 s`；超时后对应电机发送 `0 rad/s`。
+- **watchdog_hz**: 命令 watchdog 检查频率，默认 `20.0 Hz`。
+- **feedback_timeout_sec**: 电机反馈失效阈值，默认 `0.5 s`；超时进入 `RECOVERING`。
+- **recovery_retry_sec**: 恢复命令重试间隔，默认 `2.0 s`。
+- **neutral_speed_threshold_rad_s**: 回中判定阈值，默认 `0.02 rad/s`。
+- **status_hz**: `/damiao_motor_status` 发布频率，默认 `5.0 Hz`。
+- **RECONNECT_INTERVAL**: USB-CAN 串口重连间隔，当前固定 `2.0 s`。
+- **RECONNECT_MAX_ATTEMPTS**: 当前为 `0`，表示低频无限重连。
 
 ### local_navigation_node Parameters
 - **wheel_base_radius_m**: Distance from wheel center to robot center (default: `0.327038 m`)
@@ -262,19 +276,26 @@ ros2 topic pub /damiao_control std_msgs/msg/Float32MultiArray "{data: [2.0, 2.0,
 ros2 topic pub /damiao_control std_msgs/msg/Float32MultiArray "{data: [3.0, 0.0, 0.0, 0.0]}" --once
 ```
 
-## Auto-Reconnection
+## Auto-Reconnection（当前实现）
 
-The node automatically monitors connection health and reconnects when motor power is lost:
+当前实现区分两种故障：
 
-- **Health check**: Every 2 seconds (configurable via `RECONNECT_INTERVAL`)
-- **Max attempts**: 5 retries (configurable via `RECONNECT_MAX_ATTEMPTS`, 0 = infinite)
-- **Auto re-initialization**: All motors are re-initialized after reconnection
+1. **USB-CAN 串口消失或关闭**：每 `2.0 s` 无限重连；重连后重新创建 Motor 1-7 并进入安全恢复状态。
+2. **急停只切断电机电源，但 USB-CAN 仍由树莓派供电**：根据每台电机反馈超时/失能进入 `RECOVERING`，不依赖串口消失。
 
-**Behavior:**
-1. Power loss detected → `[WARN] Serial port is closed. Attempting reconnection...`
-2. Reconnection attempt → `[INFO] Reconnection attempt 1...`
-3. Success → `[INFO] Reconnection successful!` + full motor re-initialization
-4. Failure → Retry after `RECONNECT_INTERVAL` seconds
+恢复流程：
+
+```text
+反馈超时或 isEnable=false
+  -> RECOVERING，阻止所有非零命令
+  -> 每 2.0s 向一台电机发送 VEL mode + enable + 0 rad/s
+  -> 收到新鲜且 isEnable=true 的反馈
+  -> WAIT_NEUTRAL，继续阻止非零命令
+  -> 手柄/上游发送一次零速
+  -> READY，允许正常控制
+```
+
+这样即使急停释放时操作者仍推着摇杆，电机也不会立即动作。旧版 changelog 中“最多 5 次重连”只描述 2026-01-29 版本，不是当前行为。
 
 ## Test Scripts
 
@@ -658,3 +679,45 @@ wheel_radius_m = 0.0635
 - `max_wheel_speed_rad_s` 只是轮速上限，不代表实机一定能稳定达到该速度。
 - `max_wheel_accel_rad_s2` 当前仍为 `12.0 rad/s^2`，所以从低速加到高速会有加速度限制。
 - 20kg 载重下应逐级升档，并观察电流、温度、打滑和驱动器状态。
+
+## 2026-06-07 - v11 急停自动恢复测试
+
+### 状态 Topic
+
+```bash
+ros2 topic echo /damiao_motor_status
+```
+
+每条消息对应一台电机：
+
+```text
+[motor_id, state_code, feedback_fresh, is_enabled, feedback_age_sec, recovery_attempts, neutral_received]
+state_code: 0 RECOVERING, 1 WAIT_NEUTRAL, 2 READY, 3 DISABLED
+feedback_age_sec = -1 表示启动后从未收到反馈
+```
+
+### 实机测试步骤
+
+1. 将底盘架空，启动 `./r1_start_base_1_0.sh`，手柄保持回中。
+2. 确认 Motor 1-7 最终为 `state_code = 2`。
+3. 按下急停切断电机分电板，预期状态转为 `0`，且所有非零命令被阻止。
+4. 释放急停，不重启 bash；节点每 `2.0 s` 自动重发模式、使能和零速。
+5. 看到状态 `1` 后松开摇杆/按钮回中，状态应转为 `2`。
+6. 小幅推动左摇杆确认底盘恢复。
+
+### 参数调整
+
+```bash
+ros2 param get /motor_controller_node feedback_timeout_sec
+ros2 param get /motor_controller_node recovery_retry_sec
+ros2 param get /motor_controller_node neutral_speed_threshold_rad_s
+ros2 param set /motor_controller_node recovery_retry_sec 3.0
+```
+
+不建议把 `feedback_timeout_sec` 调得过短，否则正常 CAN 抖动也可能触发恢复；不建议取消回中解锁。
+
+### 2026-06-07 实机确认
+
+- 急停按下超过 10 秒后，释放急停，无需重启 bash，Motor 1-7 可以自动恢复。
+- 急停释放时保持摇杆非零，电机不会立即运动。
+- 操作者松开摇杆回中后，状态由 `WAIT_NEUTRAL` 进入 `READY`，随后可重新正常控制。

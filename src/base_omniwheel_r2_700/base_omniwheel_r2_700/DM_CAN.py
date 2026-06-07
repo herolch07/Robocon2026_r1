@@ -1,4 +1,4 @@
-from time import sleep
+from time import monotonic, sleep
 import numpy as np
 from enum import IntEnum
 from struct import unpack, pack
@@ -19,6 +19,7 @@ class Motor:
         self.MasterID = MasterID
         self.MotorType = MotorType
         self.isEnable = False  # 记录电机反馈的使能状态
+        self.last_feedback_time = None
         self.NowControlMode = Control_Type.MIT
         self.temp_param_dict = {}
 
@@ -27,6 +28,7 @@ class Motor:
         self.state_dq = dq
         self.state_tau = tau
         self.isEnable = is_enable
+        self.last_feedback_time = monotonic()
 
 class MotorControl:
     # 串口通讯帧头定义 (保持原样)

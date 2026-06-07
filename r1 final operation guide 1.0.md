@@ -558,3 +558,13 @@ ROS_LOCALHOST_ONLY=1
 ```
 
 这表示 R1 只看自己本机的 ROS2 node/topic，不会再看到 R2 的 `/damiao_motor_controller`、`/global_navigation_node`、`/base/dummy_control`。如果通过 SSH 登录 R1 查看 topic，此设置不影响使用。详细说明见 `ROS_DOMAIN_ISOLATION.md`。
+
+## 2026-06-07 急停后自动恢复操作
+
+急停会切断电机分电板，但树莓派供电的 USB-CAN 可能仍在线。当前 `damiao_node` 会根据电机反馈自动重新写入 VEL 模式并使能。释放急停后先松开全部摇杆、扳机和按钮，监控：
+
+```bash
+ros2 topic echo /damiao_motor_status
+```
+
+状态码 `0=RECOVERING`、`1=WAIT_NEUTRAL`、`2=READY`、`3=DISABLED`。Motor 1-7 全部到 `2` 后再小幅操作；正常情况不需要重启 `r1_start_base_1_0.sh`。

@@ -166,3 +166,7 @@ ROS_LOCALHOST_ONLY=1
 ```
 
 Before driving, confirm R1 cannot see R2-only topics such as `/base/dummy_control` or `/damiao_motor_controller`. Details: `ROS_DOMAIN_ISOLATION.md`.
+
+## 2026-06-07 急停恢复快速检查
+
+急停释放后保持手柄回中，不要重启脚本。运行 `ros2 topic echo /damiao_motor_status`；Motor 1-7 的 `state_code` 最终应为 `2`。`0` 表示正在恢复，`1` 表示等待回中，`2` 表示可控制。

@@ -11,7 +11,12 @@ import serial
 import os
 import time
 import sys
-from DM_CAN import MotorControl, Motor, DM_Motor_Type, Control_Type
+from base_omniwheel_r2_700.DM_CAN import (
+    Control_Type,
+    DM_Motor_Type,
+    Motor,
+    MotorControl,
+)
 
 DEVICE_ID = "usb-HDSC_CDC_Device_00000000050C-if00"
 

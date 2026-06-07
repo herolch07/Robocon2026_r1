@@ -153,3 +153,11 @@ ROS_LOCALHOST_ONLY=1
 ```
 
 Use SSH into R1 to run `ros2 node list` / `ros2 topic echo`. Do not remove this isolation unless remote ROS2 debugging from another computer is required.
+
+## 2026-06-07 急停后自动恢复
+
+`damiao_node` 现在会在反馈超时或电机反馈失能后自动执行 `VEL mode + enable + 0 rad/s`。恢复时不需要重启 bash，但必须先把摇杆和控制按钮全部松开回中，等 `/damiao_motor_status` 的 `state_code` 从 `0` 经过 `1` 变为 `2`，才允许再次运动。
+
+```bash
+ros2 topic echo /damiao_motor_status
+```
