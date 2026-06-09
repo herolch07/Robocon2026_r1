@@ -28,6 +28,7 @@
 - [x] 添加 TODO.md（符合 AGENTS.md 规范）
 - [x] README 添加 Changelog 章节
 - [x] 超时保护机制文档化
+- [x] 声明并记录 `python3-evdev` / `evdev` 运行依赖（2026-06-10）
 - [ ] 单元测试（基础功能覆盖）
 - [ ] CI/CD 集成
 

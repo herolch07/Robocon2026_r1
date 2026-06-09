@@ -144,7 +144,15 @@ class MotorControllerNode(Node):
                     self.ser.close()
                 self.ser = serial.Serial(port, 921600, timeout=0.01)
             except serial.SerialException as exc:
-                self.get_logger().error(f"Failed to open serial port: {exc}")
+                if getattr(exc, "errno", None) == 13 or "Permission denied" in str(exc):
+                    self.get_logger().error(
+                        f"Permission denied opening {port}. Add user "
+                        f"{os.getenv('USER', '<user>')} to the dialout group, "
+                        "then log out and back in: "
+                        f"sudo usermod -aG dialout {os.getenv('USER', '<user>')}"
+                    )
+                else:
+                    self.get_logger().error(f"Failed to open serial port: {exc}")
                 return False
 
             self.motor_control = MotorControl(self.ser)

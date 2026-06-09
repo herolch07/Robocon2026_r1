@@ -168,3 +168,28 @@ EdUHK Robocon Robotics Team
 - 四个摇杆轴归一化范围保持 `-512..512`。
 - 默认 deadzone 从 `24` 改为 `15`，即约 `2.93%`。
 - L2/R2 虽经过 driver 的基础过滤，但 Motor 7 bridge 仍使用独立 `trigger_deadzone = 24`。
+
+## 2026-06-10 evdev 运行依赖修复
+
+- `package.xml` 新增 `python3-evdev` 运行依赖，允许 `rosdep` 安装节点所需的 Linux 输入设备库。
+- `setup.py` 新增 Python package 依赖 `evdev`，避免生成的 package 元数据遗漏直接依赖。
+- Ubuntu 24.04 推荐使用系统包安装，确保依赖进入 ROS 2 使用的 `/usr/bin/python3`：
+
+```bash
+sudo apt update
+sudo apt install python3-evdev
+```
+
+- 安装后重新构建并加载 workspace：
+
+```bash
+colcon build --packages-select my_joystick_driver
+source install/setup.bash
+ros2 run my_joystick_driver joystick_node
+```
+
+- 若出现 `/dev/input/event*` 权限错误，将当前用户加入 `input` 组后重新登录：
+
+```bash
+sudo usermod -aG input "$USER"
+```

@@ -721,3 +721,39 @@ ros2 param set /motor_controller_node recovery_retry_sec 3.0
 - 急停按下超过 10 秒后，释放急停，无需重启 bash，Motor 1-7 可以自动恢复。
 - 急停释放时保持摇杆非零，电机不会立即运动。
 - 操作者松开摇杆回中后，状态由 `WAIT_NEUTRAL` 进入 `READY`，随后可重新正常控制。
+
+
+## 2026-06-10 - v12 USB-CAN 串口权限诊断
+
+### 问题判定
+
+当日志包含以下内容时：
+
+```text
+Permission denied: /dev/ttyACM0
+```
+
+如果设备权限为 `root:dialout` 且当前用户不在 `dialout` 组，节点无法打开 USB-CAN 串口。节点现在会在 `Errno 13` 时打印对应的永久修复命令，同时保持断连安全状态并每 `2.0 s` 重试。
+
+### 永久修复
+
+```bash
+sudo usermod -aG dialout robotics
+```
+
+执行后必须注销并重新登录，或重启系统。重新登录后确认：
+
+```bash
+id
+ls -l /dev/ttyACM0
+```
+
+`id` 输出应包含 `dialout`。之后重新启动：
+
+```bash
+cd /home/robotics/robocon2026_r1/r1_control_ws
+source install/setup.bash
+./r1_start_base_1_0.sh
+```
+
+不建议长期使用 `sudo ros2 run` 或把设备设置为 `chmod 777`；前者会改变 ROS 环境和文件属主，后者会放宽所有本机用户的硬件访问权限。
