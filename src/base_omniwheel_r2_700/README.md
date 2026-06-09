@@ -757,3 +757,47 @@ source install/setup.bash
 ```
 
 不建议长期使用 `sudo ros2 run` 或把设备设置为 `chmod 777`；前者会改变 ROS 环境和文件属主，后者会放宽所有本机用户的硬件访问权限。
+
+## 2026-06-10 - v13 DM-S3519 反馈解析与轮速上限修正
+
+### 当前硬件与单位
+
+- 当前底盘电机型号按 **DM-S3519-1EC** 配置，不再使用旧代码中的 `DMH3510` 型号枚举。
+- VEL 模式的 `V_desired` 和反馈 `dq` 均为减速器输出轴角速度，单位为 `rad/s`，不应再次除以约 `19.2:1` 的减速比。
+- 规格书额定转速 `395 rpm` 约为 `41.36 rad/s`，空载最高转速 `435 rpm` 约为 `45.55 rad/s`。
+- `local_navigation_node.max_wheel_speed_rad_s` 当前默认值改为 `40.0 rad/s`。本节取代旧版本中 `64.0 rad/s` 的当前配置说明；旧内容仅保留为历史记录。
+
+轮半径为 `0.0635 m` 时，`40.0 rad/s` 对应轮缘线速度约 `2.54 m/s`。手柄 `150 cm/s` 纯平移指令约需 `23.62 rad/s`，因此该限幅不会直接把纯平移的 150 cm/s 截断；斜向、旋转叠加和标定矩阵可能使单轮需求更高，超过 `40.0 rad/s` 时四轮会按同比例缩放。
+
+### CAN 反馈格式
+
+USB-CAN 接收按完整 `16 byte` 帧解析：
+
+```text
+AA 11 XX CAN_ID[4] DATA[8] 55
+```
+
+DM-S3519 的 `DATA[0]` 低 4 bit 是电机 ID，高 4 bit 是使能/故障状态；`DATA[1:3]` 是位置，`DATA[3:5]` 是速度，`DATA[4:6]` 是转矩，`DATA[6]` 与 `DATA[7]` 分别是 MOS 和转子温度。旧实现把 `data[3]` 同时当成 ID、状态和速度的一部分，会造成电机编号错乱及 `q/dq` 长期饱和。
+
+`/damiao_motor_status` 每台电机现追加以下字段：
+
+```text
+[7] error_code
+[8] mos_temperature_c，未知时为 -1
+[9] rotor_temperature_c，未知时为 -1
+```
+
+原有 `[0]..[6]` 字段保持不变。状态码 `1` 才视为已使能，其余状态进入现有恢复/零速保护流程。
+
+### 参数边界与实机确认
+
+驱动解码暂按 `PMAX=12.5 rad`、`VMAX=45 rad/s`、`TMAX=10 Nm` 映射。`PMAX/VMAX/TMAX` 是驱动器可写寄存器，必须读取实机寄存器确认；如果实机值不同，反馈物理量会按比例偏差，但原始 ID、状态和温度仍可正确解析。
+
+实机验证命令：
+
+```bash
+ros2 param get /local_navigation_node max_wheel_speed_rad_s
+ros2 topic echo /damiao_motor_status
+```
+
+架空底盘低速转动单个轮子时，应只更新对应 Motor，`error_code=1`，速度符号与指令一致，温度处于合理范围。反馈不新鲜、未使能或故障时，driver 会阻止非零命令并按既有 `feedback_timeout_sec`、`recovery_retry_sec` 参数执行安全恢复。

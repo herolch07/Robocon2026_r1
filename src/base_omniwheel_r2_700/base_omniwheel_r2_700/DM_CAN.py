@@ -4,6 +4,10 @@ from enum import IntEnum
 from struct import unpack, pack
 
 DEBUG_CAN = False
+USB_CAN_RX_FRAME_LENGTH = 16
+USB_CAN_RX_HEADER = 0xAA
+USB_CAN_RX_TAIL = 0x55
+USB_CAN_RX_COMMAND = 0x11
 
 class Control_Type(IntEnum):
     MIT = 1
@@ -19,15 +23,29 @@ class Motor:
         self.MasterID = MasterID
         self.MotorType = MotorType
         self.isEnable = False  # 记录电机反馈的使能状态
+        self.error_code = 0
+        self.mos_temperature_c = None
+        self.rotor_temperature_c = None
         self.last_feedback_time = None
         self.NowControlMode = Control_Type.MIT
         self.temp_param_dict = {}
 
-    def recv_data(self, q: float, dq: float, tau: float, is_enable: bool):
+    def recv_data(
+        self,
+        q: float,
+        dq: float,
+        tau: float,
+        status_code: int,
+        mos_temperature_c: int,
+        rotor_temperature_c: int,
+    ):
         self.state_q = q
         self.state_dq = dq
         self.state_tau = tau
-        self.isEnable = is_enable
+        self.error_code = status_code
+        self.isEnable = status_code == 1
+        self.mos_temperature_c = mos_temperature_c
+        self.rotor_temperature_c = rotor_temperature_c
         self.last_feedback_time = monotonic()
 
 class MotorControl:
@@ -38,12 +56,13 @@ class MotorControl:
     
     Limit_Param = [[12.5, 30, 10], [12.5, 50, 10], [12.5, 8, 28], [12.5, 10, 28],
                    [12.5, 45, 20], [12.5, 45, 40], [12.5, 45, 54], [12.5, 25, 200], [12.5, 20, 200],
-                   [12.5 , 280 , 1],[12.5 , 45 , 10],[12.5 , 45 , 10]]
+                   [12.5 , 280 , 1],[12.5 , 45 , 10],[12.5 , 45 , 10],
+                   [12.5, 45, 10]]  # DM-S3519; verify PMAX/VMAX/TMAX on hardware.
 
     def __init__(self, serial_device):
         self.serial_ = serial_device
         self.motors_map = dict()
-        self.recv_buffer = []  # 初始化接收缓冲区
+        self.recv_buffer = bytearray()
         if not self.serial_.is_open:
             self.serial_.open()
 
@@ -99,57 +118,66 @@ class MotorControl:
         # commands, are sent with less skew.
 
     def recv(self):
-        """解析反馈：处理 ID 和 ERR 状态位，更新电机状态"""
+        """Parse USB-CAN receive frames and update DM-S3519 feedback."""
         if self.serial_.in_waiting > 0:
             self.recv_buffer.extend(self.serial_.read(self.serial_.in_waiting))
-            
-            while len(self.recv_buffer) >= 30:
-                # 寻找帧头 0x55 0xAA
-                if self.recv_buffer[0] == 0x55 and self.recv_buffer[1] == 0xAA:
-                    frame = self.recv_buffer[:30]
-                    # 提取 CAN ID (13-14字节) 和 CAN 数据 (21-29字节)
-                    can_id = frame[13] | (frame[14] << 8)
-                    data = frame[21:29]
-                    
-                    # ✅ 正确解析：电机ID在 data[3] 的低4位
-                    # 根据实际测试：
-                    # - data[3] = 0x11 → 电机1
-                    # - data[3] = 0x12 → 电机2
-                    # - data[3] = 0x13 → 电机3
-                    # - data[3] = 0x14 → 电机4
-                    motor_id_feedback = data[3] & 0x0F  # data[3]的低4位是电机ID
-                    
-                    # ✅ 正确解析：使能状态在 data[3] 的高4位
-                    # data[3] >> 4 = 0x1 表示使能
-                    is_enabled = ((data[3] >> 4) & 0x0F) == 1
-                    
-                    if DEBUG_CAN:
-                        data_hex = ''.join(f'{b:02X}' for b in data)
-                        print(f"[DEBUG] can_id=0x{can_id:03X}, motor_id(data[3]&0x0F)={motor_id_feedback}, is_enabled=(data[3]>>4)==1={is_enabled}, data[3]=0x{data[3]:02X}, full_data={data_hex}")
-                    
-                    # 查找对应的电机对象并更新状态
-                    target_id = motor_id_feedback
-                    if target_id in self.motors_map:
-                        m = self.motors_map[target_id]
-                        # 手册 p7 反馈数据格式（注意：q, dq, tau的字节位置可能需要根据实际调整）
-                        q_uint = np.uint16((np.uint16(data[1]) << 8) | data[2])
-                        dq_uint = np.uint16((np.uint16(data[3]) << 4) | (data[4] >> 4))
-                        tau_uint = np.uint16(((data[4] & 0xf) << 8) | data[5])
-                        
-                        limit = self.Limit_Param[m.MotorType]
-                        q = self.__uint_to_float(q_uint, -limit[0], limit[0], 16)
-                        dq = self.__uint_to_float(dq_uint, -limit[1], limit[1], 12)
-                        tau = self.__uint_to_float(tau_uint, -limit[2], limit[2], 12)
-                        m.recv_data(q, dq, tau, is_enabled)
-                        if DEBUG_CAN:
-                            print(f"[DEBUG] Motor {target_id} updated: q={q:.2f}, dq={dq:.2f}, tau={tau:.2f}, isEnable={is_enabled}")
-                    else:
-                        if DEBUG_CAN:
-                            print(f"[WARN] Motor ID {target_id} not in motors_map {list(self.motors_map.keys())}")
-                    
-                    del self.recv_buffer[:30]
-                else:
-                    self.recv_buffer.pop(0)
+
+        while len(self.recv_buffer) >= USB_CAN_RX_FRAME_LENGTH:
+            if self.recv_buffer[0] != USB_CAN_RX_HEADER:
+                del self.recv_buffer[0]
+                continue
+
+            if self.recv_buffer[USB_CAN_RX_FRAME_LENGTH - 1] != USB_CAN_RX_TAIL:
+                del self.recv_buffer[0]
+                continue
+
+            frame = bytes(self.recv_buffer[:USB_CAN_RX_FRAME_LENGTH])
+            del self.recv_buffer[:USB_CAN_RX_FRAME_LENGTH]
+            self._process_receive_frame(frame)
+
+    def _process_receive_frame(self, frame):
+        """Decode one 16-byte USB-CAN receive frame."""
+        if len(frame) != USB_CAN_RX_FRAME_LENGTH or frame[1] != USB_CAN_RX_COMMAND:
+            return
+
+        can_id = (
+            frame[3]
+            | (frame[4] << 8)
+            | (frame[5] << 16)
+            | (frame[6] << 24)
+        )
+        data = frame[7:15]
+
+        # D0 low nibble is motor ID; D0 high nibble is status/error.
+        payload_motor_id = data[0] & 0x0F
+        target_id = can_id if can_id in self.motors_map else payload_motor_id
+        motor = self.motors_map.get(target_id)
+        if motor is None:
+            if DEBUG_CAN:
+                print(
+                    f"[WARN] Motor ID {target_id} not in motors_map "
+                    f"{list(self.motors_map.keys())}"
+                )
+            return
+
+        status_code = (data[0] >> 4) & 0x0F
+        q_uint = np.uint16((np.uint16(data[1]) << 8) | data[2])
+        dq_uint = np.uint16((np.uint16(data[3]) << 4) | (data[4] >> 4))
+        tau_uint = np.uint16(((data[4] & 0x0F) << 8) | data[5])
+        limit = self.Limit_Param[motor.MotorType]
+        q = self.__uint_to_float(q_uint, -limit[0], limit[0], 16)
+        dq = self.__uint_to_float(dq_uint, -limit[1], limit[1], 12)
+        tau = self.__uint_to_float(tau_uint, -limit[2], limit[2], 12)
+        motor.recv_data(q, dq, tau, status_code, data[6], data[7])
+
+        if DEBUG_CAN:
+            data_hex = "".join(f"{byte:02X}" for byte in data)
+            print(
+                f"[DEBUG] can_id=0x{can_id:03X}, motor={target_id}, "
+                f"status=0x{status_code:X}, q={q:.2f}, dq={dq:.2f}, "
+                f"tau={tau:.2f}, mos={data[6]}C, rotor={data[7]}C, "
+                f"data={data_hex}"
+            )
 
     def __send_data(self, motor_id, data):
         self.send_data_frame[13] = motor_id & 0xff
@@ -162,11 +190,5 @@ class MotorControl:
         offset = min_value
         return float(uint_value) * span / (float((1 << bits) - 1)) + offset
 
-# --- 枚举类定义 ---
-class Control_Type(IntEnum):
-    MIT = 1
-    POS_VEL = 2 # 位置速度模式
-    VEL = 3
-
 class DM_Motor_Type(IntEnum):
-    DMH3510 = 9 # 根据手册确认型号
+    DMS3519 = 12  # DM-S3519 geared motor with DM3520-1EC driver

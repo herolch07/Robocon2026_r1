@@ -162,7 +162,7 @@ class MotorControllerNode(Node):
             self._reset_motor_runtime_state(motor_ids)
 
             for motor_id in motor_ids:
-                motor = Motor(DM_Motor_Type.DMH3510, motor_id, 0x00)
+                motor = Motor(DM_Motor_Type.DMS3519, motor_id, 0x00)
                 self.motors[motor_id] = motor
                 self.motor_control.addMotor(motor)
 
@@ -513,6 +513,17 @@ class MotorControllerNode(Node):
                 -1.0 if age == float("inf") else float(age),
                 float(self.recovery_attempts.get(motor_id, 0)),
                 1.0 if self.neutral_received.get(motor_id, False) else 0.0,
+                float(motor.error_code),
+                (
+                    -1.0
+                    if motor.mos_temperature_c is None
+                    else float(motor.mos_temperature_c)
+                ),
+                (
+                    -1.0
+                    if motor.rotor_temperature_c is None
+                    else float(motor.rotor_temperature_c)
+                ),
             ]
             self.status_pub.publish(msg)
 

@@ -127,7 +127,9 @@ class LocalNavigationNode(Node):
         self.declare_parameter("omniwheel_radius_m", OMNIWHEEL_RADIUS_M)
         self.declare_parameter("lateral_axis_sign", 1.0)
         self.declare_parameter("rotation_axis_sign", 1.0)
-        self.declare_parameter("max_wheel_speed_rad_s", 64.0)
+        # DM-S3519 geared-output rated speed is 395 rpm (41.36 rad/s).
+        # Keep the software hard limit slightly below that rated point.
+        self.declare_parameter("max_wheel_speed_rad_s", 40.0)
         self.declare_parameter("max_wheel_accel_rad_s2", 12.0)
         self.declare_parameter("motor_direction_1", float(MOTOR_DIRECTION[1]))
         self.declare_parameter("motor_direction_2", float(MOTOR_DIRECTION[2]))
