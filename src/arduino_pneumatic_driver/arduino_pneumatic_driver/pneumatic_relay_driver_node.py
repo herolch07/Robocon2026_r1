@@ -44,7 +44,7 @@ class PneumaticRelayDriverNode(Node):
         self.declare_parameter("command_timeout_sec", 0.5)
         self.declare_parameter("watchdog_hz", 20.0)
         self.declare_parameter("reconnect_sec", 1.0)
-        self.declare_parameter("safe_state", [0, 1])
+        self.declare_parameter("safe_state", [0, 0])
 
         self.serial_handle = None
         self.connected = False
@@ -158,7 +158,7 @@ class PneumaticRelayDriverNode(Node):
         Safety watchdog for command loss and serial reconnect.
 
         If no fresh command arrives within command_timeout_sec, send safe_state.
-        The default startup safe state is [0, 1]: height low, gripper closed.
+        The default startup state is [0, 0]: height low, gripper open.
         This matches the current relay wiring order [height_state, gripper_state].
         """
         now = time.monotonic()

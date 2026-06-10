@@ -230,3 +230,58 @@ ls -l /dev/serial/by-id/
 ```
 
 注意不要使用 `/dev/ttyACM0`，它当前是达妙 USB-CAN。
+
+## 2026-06-10 v11 arm height 单键切换
+
+当前手柄映射更新为：
+
+```text
+B: 按住 arm gripper OPEN，松开 CLOSE
+A: 每次按下在 height LOW/HIGH 之间切换
+X: 不再用于 arm height，可供其他机构使用
+```
+
+切换只在按钮从松开变为按下的瞬间执行一次，长按 `A` 不会按 joystick 发布频率反复切换。bridge 仍以 `20 Hz` 发布 `[height_state, gripper_state]`，Arduino serial 协议和 relay 顺序不变：
+
+```text
+[0, 1] = height LOW + gripper CLOSE
+[1, 1] = height HIGH + gripper CLOSE
+```
+
+新增参数：
+
+```text
+height_toggle_button = a
+```
+
+可在启动时改成其他 `Joystick` 消息按钮名。超过 `input_timeout_sec = 0.3 s` 未收到 `/joystick_data` 时，bridge 回到安全状态 `[0, 1]`，并要求按钮先松开，之后再次按下才允许切换。
+
+## 2026-06-10 v12 arm gripper 单键锁定与默认 OPEN
+
+本节取代旧版本中 `B` 按住控制和 arm gripper 默认 CLOSE 的当前行为说明；旧内容仅保留为历史记录。
+
+当前手柄映射：
+
+```text
+A: 每次按下切换 arm height LOW/HIGH
+B: 每次按下切换 arm gripper OPEN/CLOSE
+X: 未分配给 arm pneumatic
+```
+
+启动默认状态和 `/joystick_data` 超时状态均为：
+
+```text
+[height_state, gripper_state] = [0, 0]
+height LOW + arm gripper OPEN
+```
+
+A、B 都只在按钮上升沿切换，长按不会重复动作。启动或超过
+`input_timeout_sec = 0.3 s` 未收到手柄数据后，A、B 必须先松开再重新按下，避免恢复通信时误切换。
+
+正式启动脚本使用 `kfs_staff_gripper_arduino_node` 管理三路 Arduino relay；其完整默认串口状态为：
+
+```text
+[0, 0, 0] = arm LOW + arm OPEN + KFS CLOSE
+```
+
+standalone `pneumatic_relay_driver_node` 的默认 `safe_state` 同步改为 `[0, 0]`。注意：arm gripper 在手柄超时、节点重启、串口重连和正常关闭时都会回到 OPEN，可能释放正在夹持的物体，这是当前确认的预期行为。

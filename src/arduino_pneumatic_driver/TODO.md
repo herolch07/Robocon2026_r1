@@ -50,3 +50,25 @@
 - [x] `/pneumatic_gripper_cmd` 顺序改为 `[height_state, gripper_state]`
 - [x] startup/timeout safe state 改为 `[0,1]`
 - [x] `B` 只控制 gripper，`A/X` 只控制 height
+
+## v11 arm height 单键切换
+
+- [x] 将 `A=LOW`、`X=HIGH` 改为默认 `A` 单键切换 LOW/HIGH
+- [x] 使用按钮上升沿切换，避免长按时按 joystick 发布频率反复翻转
+- [x] 新增 `height_toggle_button` 参数，允许通过参数更换按钮
+- [x] timeout 后回到 `[0,1]`，并要求切换按钮先松开再重新按下
+- [x] 新增无硬件单键切换测试
+- [x] README 追加 v11 当前映射与串口协议说明
+- [ ] 实机确认每按一次 `A` 只切换一次高度，`X` 已释放
+
+## v12 arm gripper 单键锁定与默认 OPEN
+
+- [x] 将 `B` 从按住 OPEN 改为每次按下切换 OPEN/CLOSE
+- [x] 使用 B 按钮上升沿，避免长按时重复切换
+- [x] arm bridge 启动和 joystick timeout 默认改为 `[0,0]` = LOW + OPEN
+- [x] timeout 后要求 A/B 先松开再重新按下
+- [x] standalone pneumatic driver `safe_state` 改为 `[0,0]`
+- [x] 新增 B 锁定切换与 timeout 恢复测试
+- [x] README 追加 v12 当前行为和释放夹持物风险
+- [ ] 实机确认启动默认 OPEN、B 每按一次只切换一次
+- [ ] 实机确认 joystick timeout 后 arm gripper OPEN 符合机构安全要求

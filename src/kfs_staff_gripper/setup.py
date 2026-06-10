@@ -11,6 +11,7 @@ setup(
         ("share/" + package_name, ["package.xml", "README.md", "TODO.md"]),
     ],
     install_requires=["setuptools", "pyserial"],
+    extras_require={"test": ["pytest"]},
     zip_safe=True,
     maintainer="EdUHK Robocon Team",
     maintainer_email="robotics@example.com",

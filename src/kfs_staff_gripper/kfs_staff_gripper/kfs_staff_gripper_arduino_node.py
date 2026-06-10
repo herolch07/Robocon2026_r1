@@ -22,6 +22,9 @@ except ImportError:  # pragma: no cover - reported clearly at runtime on robot
     serial = None
 
 
+DEFAULT_SAFE_STATE = [0, 0, 0]  # arm LOW + arm OPEN + KFS CLOSE
+
+
 class KfsStaffGripperArduinoNode(Node):
     """
     Aggregate arm pneumatic and KFS staff gripper relay commands.
@@ -49,7 +52,7 @@ class KfsStaffGripperArduinoNode(Node):
         self.declare_parameter("command_timeout_sec", 0.5)
         self.declare_parameter("watchdog_hz", 20.0)
         self.declare_parameter("reconnect_sec", 1.0)
-        self.declare_parameter("safe_state", [0, 1, 0])
+        self.declare_parameter("safe_state", DEFAULT_SAFE_STATE)
         self.declare_parameter("arm_relay_indices", [0, 1])
         self.declare_parameter("staff_relay_indices", [2])
         self.declare_parameter("arm_cmd_topic", "/pneumatic_gripper_cmd")

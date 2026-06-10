@@ -68,3 +68,14 @@
 - [x] 新 Arduino Mega by-id 不同时自动扫描 Arduino/CH340 serial path
 - [x] 自动扫描时排除达妙 USB-CAN `HDSC`
 - [x] README 记录换 Arduino Mega 后的串口排查方式
+
+## v0.3.6 arm 默认 OPEN、KFS 默认 CLOSE
+
+- [x] aggregator 默认 `safe_state` 改为 `[0,0,0]`
+- [x] 明确 relay 顺序为 `[arm_height, arm_gripper, kfs_gripper]`
+- [x] 保持 KFS bridge `safe_state=[0]`，启动和 timeout 默认 CLOSE
+- [x] 保持 Y 为按住 OPEN、松开 CLOSE，不改为 latch
+- [x] 新增三路默认状态无硬件测试
+- [x] README 追加 v0.3.6 当前按钮和 watchdog 行为
+- [ ] 实机确认 bash 启动后 arm OPEN、KFS CLOSE
+- [ ] 实机确认 B latch 与 Y hold 两种操作互不影响

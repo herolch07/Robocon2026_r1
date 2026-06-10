@@ -324,3 +324,26 @@ ros2 topic echo /kfs_staff_gripper_status
 2. 现在 Arduino 只接受长度刚好为 7 的 `[1,0,1]`，格式很严格。ROS node 已按这个格式发送。
 3. Arduino 没有超时保护。如果 ROS 或 USB 断开，Arduino 会保持最后一次 relay 状态。本 package 在 ROS 侧对 arm pneumatic 与 KFS staff gripper 分别做 timeout safe state，但如果 USB 线直接断开，Arduino 仍不会自动关 relay。之后建议把 Arduino sketch 也加 millis watchdog。
 4. 如果和旧 pneumatic 共用同一个 Arduino，不能两个 ROS serial driver 同时打开同一个 `/dev/ttyUSB*`。本 package 的 aggregator node 就是为了解决这个问题。
+
+## 2026-06-10 v0.3.6 arm 默认 OPEN、KFS 默认 CLOSE
+
+正式启动脚本中的三路 Arduino aggregator 当前默认状态改为：
+
+```text
+safe_state = [0, 0, 0]
+relay order = [arm_height, arm_gripper, kfs_gripper]
+含义 = arm LOW + arm OPEN + KFS CLOSE
+```
+
+当前按钮行为：
+
+```text
+A: 每次按下切换 arm height LOW/HIGH
+B: 每次按下切换 arm gripper OPEN/CLOSE
+Y: 按住 KFS gripper OPEN，松开 KFS gripper CLOSE
+X: 未由这两个 gripper bridge 使用
+```
+
+KFS bridge 的 `safe_state` 保持 `[0]`，因此 bash 启动、Y 松开、KFS command timeout、Arduino 重连和节点关闭时，KFS gripper 均为 CLOSE。Y 本次没有改成锁定切换。
+
+aggregator 继续对 arm 和 KFS 两个 command topic 独立执行 `command_timeout_sec = 0.5 s` watchdog：arm 来源超时只将 relay 1-2 回到 `[0,0]`；KFS 来源超时只将 relay 3 回到 `0`。

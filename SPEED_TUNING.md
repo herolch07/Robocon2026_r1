@@ -396,3 +396,116 @@ R1 speed tests must not be run while `/base/dummy_control` or `/damiao_motor_con
 ## 2026-06-06 当前平移控制策略
 
 当前默认平移上限为 `150 cm/s`、旋转上限为 `1.2 rad/s`、Motor 7 上限为 `1.3 rad/s`；三者均采用 `y = 0.1x + 0.9x³`。START/SELECT 底盘速度档已取消。本文较早章节中的调速命令属于历史调试记录。
+
+## 2026-06-10 当前有效速度边界（取代旧 64 rad/s / 400 cm/s 方案）
+
+本节是当前 DM-S3519 底盘的有效配置。本文前面的 `64 rad/s`、`400 cm/s` 内容属于历史调试记录，不应作为当前实机参数。
+
+### 当前参数
+
+```text
+joystick_bridge.max_speed_cm = 150.0 cm/s
+joystick_bridge.max_rotation = 1.2 rad/s
+local_navigation_node.max_wheel_speed_rad_s = 40.0 rad/s
+local_navigation_node.max_wheel_accel_rad_s2 = 12.0 rad/s^2
+omniwheel_radius_m = 0.0635 m
+wheel_base_radius_m = 0.327038 m
+```
+
+### 三层速度限制
+
+1. `joystick_bridge.max_speed_cm` 决定左摇杆满杆发布的目标平移速度。
+2. `local_navigation_node.max_wheel_speed_rad_s` 限制任意单轮速度；一个轮子超限时，四轮同比缩放。
+3. DM-S3519 的实际转速、负载、电池电压、地面抓地力和驱动器保护决定真实可达到速度。
+
+因此，提高 `max_speed_cm` 只会提高目标值，不能绕过 `40 rad/s` 轮速限制或电机机械能力。
+
+### 基本换算
+
+```text
+轮缘速度 = 轮子角速度 × 轮半径
+纯前后/左右所需轮速 = 底盘速度 / 轮半径
+当前校准矩阵斜向最坏轮速 = 底盘速度 × sqrt(2) / 轮半径
+旋转叠加轮速 = rotation_rad_s × wheel_base_radius_m / wheel_radius_m
+```
+
+满旋转 `1.2 rad/s` 对单轮增加约：
+
+```text
+1.2 × 0.327038 / 0.0635 = 6.18 rad/s
+```
+
+### 当前软件和电机理论上限
+
+| 边界 | 轮速 | 纯前后/左右 | 斜向最坏方向 |
+|---|---:|---:|---:|
+| 当前手柄默认目标 | - | `150 cm/s` | `150 cm/s` |
+| 当前软件轮速限制 | `40.00 rad/s` | `254 cm/s` | `180 cm/s` |
+| DM-S3519 额定 395 rpm | `41.36 rad/s` | `263 cm/s` | `186 cm/s` |
+| DM-S3519 空载最高 435 rpm | `45.55 rad/s` | `289 cm/s` | `205 cm/s` |
+
+这些是几何理论值，不是带载实测速度。斜向值较低，是因为当前 forward/lateral 校准矩阵在 45 度方向会让最忙的单轮承担约 `sqrt(2)` 倍平移分量。
+
+### 150 cm/s 当前状态
+
+```text
+纯前后/左右：1.50 / 0.0635 = 23.62 rad/s
+斜向最坏方向：23.62 × sqrt(2) = 33.41 rad/s
+斜向 + 1.2 rad/s 满旋转：33.41 + 6.18 = 39.59 rad/s
+```
+
+因此当前 `150 cm/s` 即使叠加最大旋转，也刚好低于 `40 rad/s` 软件上限，但余量只有约 `0.41 rad/s`。
+
+### 如何提高到 170 cm/s
+
+临时运行时设置：
+
+```bash
+ros2 param set /joystick_bridge max_speed_cm 170.0
+```
+
+查看是否生效：
+
+```bash
+ros2 param get /joystick_bridge max_speed_cm
+ros2 param get /local_navigation_node max_wheel_speed_rad_s
+```
+
+`170 cm/s` 的计算：
+
+```text
+纯前后/左右：1.70 / 0.0635 = 26.77 rad/s
+斜向最坏方向：26.77 × sqrt(2) = 37.86 rad/s
+斜向 + 满旋转：37.86 + 6.18 = 44.04 rad/s
+```
+
+所以 `170 cm/s` 纯平移可以运行；斜向再叠加最大旋转时会超过 `40 rad/s`，`local_navigation_node` 会同比缩放四轮，实际平移和旋转都低于目标值。
+
+若要永久改为 `170 cm/s`，修改 `joystick_bridge.py` 中 `max_speed_cm` 的默认值，或后续写入 YAML/launch。仅运行 `ros2 param set` 会在节点重启后恢复 `150 cm/s`。
+
+### 为什么当前保持 40 rad/s
+
+- DM-S3519 额定输出轴速度约 `41.36 rad/s`，`40 rad/s` 留有少量额定余量。
+- 旧 `64 rad/s` 相当于约 `611 rpm`，高于电机 `435 rpm` 空载最高规格。
+- 限制组合动作的单轮峰值，可降低过流、母线压降、回生过压、打滑和 CAN/驱动器保护风险。
+- 四轮同比缩放可保留运动方向比例，不会只截断某一轮导致运动方向明显改变。
+
+### VMAX=200 不代表机械速度 200 rad/s
+
+`PMAX/VMAX/TMAX` 是 CAN 定点反馈的映射范围。若实机为：
+
+```text
+PMAX = 12.5
+VMAX = 200
+TMAX = 10
+```
+
+`VMAX=200` 只用于把 12-bit 反馈速度还原成 `rad/s`，不表示 DM-S3519 输出轴能够达到 `200 rad/s`。VEL 模式发送的是浮点 `rad/s`，机械速度仍受额定 `395 rpm`、空载最高 `435 rpm` 和驱动器 `MAX_SPD` 限制。
+
+### 调高速度的推荐步骤
+
+```text
+150 -> 160 -> 170 cm/s
+```
+
+每一级在实际载重和比赛地面测试：纯前进、纯横移、斜向、原地旋转、斜向加旋转、满速松杆和正反快速切换。监控 `/damiao_motor_status`、电池压降、驱动器故障码、MOS/转子温度和轮胎打滑。当前不建议在保持 `40 rad/s` 轮速限制时直接把手柄目标改到 `200 cm/s` 以上。

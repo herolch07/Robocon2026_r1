@@ -801,3 +801,34 @@ ros2 topic echo /damiao_motor_status
 ```
 
 架空底盘低速转动单个轮子时，应只更新对应 Motor，`error_code=1`，速度符号与指令一致，温度处于合理范围。反馈不新鲜、未使能或故障时，driver 会阻止非零命令并按既有 `feedback_timeout_sec`、`recovery_retry_sec` 参数执行安全恢复。
+
+## 2026-06-10 - v14 当前底盘理论速度与提速方法
+
+当前有效默认值：
+
+```text
+max_speed_cm = 150.0 cm/s
+max_rotation = 1.2 rad/s
+max_wheel_speed_rad_s = 40.0 rad/s
+max_wheel_accel_rad_s2 = 12.0 rad/s^2
+wheel radius = 0.0635 m
+```
+
+理论边界：
+
+| 边界 | 纯前后/左右 | 斜向最坏方向 |
+|---|---:|---:|
+| 当前手柄目标 | `150 cm/s` | `150 cm/s` |
+| `40 rad/s` 软件轮速限制 | `254 cm/s` | `180 cm/s` |
+| DM-S3519 额定 395 rpm | `263 cm/s` | `186 cm/s` |
+| DM-S3519 空载最高 435 rpm | `289 cm/s` | `205 cm/s` |
+
+当前校准矩阵的斜向最忙单轮约为纯直线的 `sqrt(2)` 倍。`150 cm/s` 斜向加最大 `1.2 rad/s` 旋转约需 `39.59 rad/s`，接近但未超过 `40 rad/s`。
+
+临时提高到 `170 cm/s`：
+
+```bash
+ros2 param set /joystick_bridge max_speed_cm 170.0
+```
+
+纯平移可以达到目标；斜向叠加最大旋转约需 `44.04 rad/s`，会触发四轮同比缩放。完整公式、提速步骤、风险和 `VMAX=200` 的解释见 workspace 根目录 `SPEED_TUNING.md` 的“2026-06-10 当前有效速度边界”章节。
