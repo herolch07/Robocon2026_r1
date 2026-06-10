@@ -79,3 +79,15 @@
 - [x] README 追加 v0.3.6 当前按钮和 watchdog 行为
 - [ ] 实机确认 bash 启动后 arm OPEN、KFS CLOSE
 - [ ] 实机确认 B latch 与 Y hold 两种操作互不影响
+
+## v0.3.7 KFS Y 单键锁定切换
+
+- [x] 将 Y 从按住 OPEN 改为每次按下切换 OPEN/CLOSE
+- [x] 使用 Y 按钮上升沿，避免长按时重复切换
+- [x] 保持启动和 timeout 默认 `[0]` = KFS CLOSE
+- [x] timeout 后要求 Y 先松开再重新按下
+- [x] 保持 aggregator 默认 `[0,0,0]` 和 relay 映射不变
+- [x] 新增 KFS Y 锁定与 timeout 恢复测试
+- [x] README 追加 v0.3.7 当前行为
+- [ ] 实机确认 Y 每按一次只切换一次，松开后保持当前状态
+- [ ] 实机确认 joystick timeout 后 KFS 自动 CLOSE

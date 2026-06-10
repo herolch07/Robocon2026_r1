@@ -347,3 +347,34 @@ X: 未由这两个 gripper bridge 使用
 KFS bridge 的 `safe_state` 保持 `[0]`，因此 bash 启动、Y 松开、KFS command timeout、Arduino 重连和节点关闭时，KFS gripper 均为 CLOSE。Y 本次没有改成锁定切换。
 
 aggregator 继续对 arm 和 KFS 两个 command topic 独立执行 `command_timeout_sec = 0.5 s` watchdog：arm 来源超时只将 relay 1-2 回到 `[0,0]`；KFS 来源超时只将 relay 3 回到 `0`。
+
+## 2026-06-10 v0.3.7 KFS Y 单键锁定切换
+
+本节取代 v0.3.6 中 Y 按住 OPEN、松开 CLOSE 的当前行为说明；旧内容仅保留为历史记录。
+
+当前按钮行为：
+
+```text
+A: 每次按下切换 arm height LOW/HIGH
+B: 每次按下切换 arm gripper OPEN/CLOSE
+Y: 每次按下切换 KFS gripper OPEN/CLOSE
+X: 未由这两个 gripper bridge 使用
+```
+
+KFS 启动默认仍为 CLOSE：
+
+```text
+/kfs_staff_gripper_cmd = [0] -> CLOSE
+/kfs_staff_gripper_cmd = [1] -> OPEN
+```
+
+Y 只在按钮从松开变为按下的上升沿切换一次，长按不会反复切换。超过
+`input_timeout_sec = 0.3 s` 未收到 `/joystick_data` 时，KFS bridge 回到 `[0] = CLOSE`；恢复通信后必须先松开 Y，再重新按下才能 OPEN。
+
+三路 Arduino aggregator 的完整默认状态保持不变：
+
+```text
+[0, 0, 0] = arm LOW + arm OPEN + KFS CLOSE
+```
+
+Arduino serial node、串口格式、relay 3 映射和 `command_timeout_sec = 0.5 s` watchdog 均未改变。

@@ -19,7 +19,7 @@ class KfsStaffGripperJoystickBridgeNode(Node):
     Convert joystick buttons into staff gripper relay commands.
 
     Default mapping after real-machine check:
-      Y: hold staff gripper OPEN; release to CLOSE
+      Y: toggle staff gripper OPEN/CLOSE on each press
 
     R3 is intentionally not used by this node after the Arduino panel was changed
     to a three-relay sketch.
@@ -35,6 +35,7 @@ class KfsStaffGripperJoystickBridgeNode(Node):
 
         self.last_joystick_time = None
         self.current_state = self.get_safe_state()
+        self.staff_toggle_pressed = True
 
         self.joy_sub = self.create_subscription(
             Joystick,
@@ -50,7 +51,7 @@ class KfsStaffGripperJoystickBridgeNode(Node):
         self.get_logger().info("KFS staff gripper joystick bridge initialized")
         self.get_logger().info(
             "Mapping: "
-            f"{self.get_parameter('staff_button').value} -> staff gripper open while held"
+            f"{self.get_parameter('staff_button').value} -> toggle staff gripper open/close"
         )
 
     def get_safe_state(self):
@@ -62,12 +63,24 @@ class KfsStaffGripperJoystickBridgeNode(Node):
         return safe
 
     def joystick_callback(self, msg):
-        """Update staff gripper state from the configured joystick buttons."""
+        """Toggle the staff gripper once on each configured button press."""
         self.last_joystick_time = self.get_clock().now()
         staff_button = str(self.get_parameter("staff_button").value)
-        self.current_state = [
-            1 if self.get_button(msg, staff_button) else 0,
-        ]
+        pressed = self.get_button(msg, staff_button)
+        state, self.staff_toggle_pressed = self.apply_staff_toggle(
+            self.current_state[0],
+            pressed,
+            self.staff_toggle_pressed,
+        )
+        self.current_state = [state]
+
+
+    @staticmethod
+    def apply_staff_toggle(state, pressed, was_pressed):
+        """Toggle CLOSE/OPEN once on a button rising edge."""
+        if pressed and not was_pressed:
+            state = 1 - state
+        return state, pressed
 
     def get_button(self, msg, button_name):
         """Read a boolean button from Joystick by name, returning False if invalid."""
@@ -78,10 +91,11 @@ class KfsStaffGripperJoystickBridgeNode(Node):
 
     def publish_timer_callback(self):
         """Refresh command output and fail safe if joystick input times out."""
-        state = self.current_state
         if self.is_joystick_timed_out():
-            state = self.get_safe_state()
-        self.publish_state(state)
+            self.current_state = self.get_safe_state()
+            # Require Y release before accepting another toggle after timeout.
+            self.staff_toggle_pressed = True
+        self.publish_state(self.current_state)
 
     def is_joystick_timed_out(self):
         """Return true when /joystick_data has stopped for input_timeout_sec."""
