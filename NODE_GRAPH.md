@@ -444,3 +444,29 @@ flowchart LR
 ```
 
 Motor 7 原有 `/arm_gripper_speed_cmd` 链路保持不变。
+
+## 2026-06-13 Motor 7/8 共享 selector
+
+```text
+/joystick_data
+  -> /motor_position_selector_joystick_bridge_node
+       START: selected_motor 7 <-> 8 (default 7)
+       X: selected motor A/B
+       L2/R2: selected motor trim
+  -> /motor7_position_input -> /motor7_position_controller_node -> /damiao_control
+  -> /motor8_position_input -> /motor8_position_controller_node -> /damiao_control
+  -> /motor_controller_node -> Motor 7/8 POS_VEL
+```
+
+旧 Motor 7 `/arm_gripper_speed_cmd` 链路不再由主启动脚本运行。
+
+## 2026-06-13 三位置状态
+
+```text
+X rising edge -> selected_position = (selected_position + 1) mod 3
+0 -> 0 rad
+1 -> +35 rad
+2 -> -35 rad
+```
+
+该状态由 Motor 7/8 controller 独立保存，共享 selector 只负责把 X 事件路由给当前电机。

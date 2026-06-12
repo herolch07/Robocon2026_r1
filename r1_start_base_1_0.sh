@@ -70,31 +70,28 @@ tmux new-window -t "$SESSION:6" -n "horizontal" \
 tmux new-window -t "$SESSION:7" -n "horiz_bridge" \
     "$BASE_CMD && ros2 run r1_arm_control horizontal_joystick_bridge_node; exec bash"
 
-tmux new-window -t "$SESSION:8" -n "gripper" \
-    "$BASE_CMD && ros2 run r1_arm_control arm_gripper_controller_node; exec bash"
+tmux new-window -t "$SESSION:8" -n "motor7_pos" \
+    "$BASE_CMD && ros2 run r1_arm_control motor7_position_controller_node; exec bash"
 
-tmux new-window -t "$SESSION:9" -n "grip_bridge" \
-    "$BASE_CMD && ros2 run r1_arm_control arm_gripper_joystick_bridge_node; exec bash"
-
-tmux new-window -t "$SESSION:10" -n "motor8_pos" \
+tmux new-window -t "$SESSION:9" -n "motor8_pos" \
     "$BASE_CMD && ros2 run r1_arm_control motor8_position_controller_node; exec bash"
 
-tmux new-window -t "$SESSION:11" -n "motor8_bridge" \
-    "$BASE_CMD && ros2 run r1_arm_control motor8_position_joystick_bridge_node; exec bash"
+tmux new-window -t "$SESSION:10" -n "motor_select" \
+    "$BASE_CMD && ros2 run r1_arm_control motor_position_selector_joystick_bridge_node; exec bash"
 
-tmux new-window -t "$SESSION:12" -n "relay_panel" \
+tmux new-window -t "$SESSION:11" -n "relay_panel" \
     "$BASE_CMD && ros2 run kfs_staff_gripper kfs_staff_gripper_arduino_node; exec bash"
 
-tmux new-window -t "$SESSION:13" -n "pneu_bridge" \
+tmux new-window -t "$SESSION:12" -n "pneu_bridge" \
     "$BASE_CMD && ros2 run arduino_pneumatic_driver pneumatic_gripper_joystick_bridge_node; exec bash"
 
-tmux new-window -t "$SESSION:14" -n "kfs_bridge" \
+tmux new-window -t "$SESSION:13" -n "kfs_bridge" \
     "$BASE_CMD && ros2 run kfs_staff_gripper kfs_staff_gripper_joystick_bridge_node; exec bash"
 
-tmux new-window -t "$SESSION:15" -n "monitor" \
-    "$BASE_CMD && echo 'Monitor commands:' && echo 'ros2 node list' && echo 'ros2 topic echo /joystick_data' && echo 'ros2 topic echo /local_driving' && echo 'ros2 topic echo /elevator_speed_cmd' && echo 'ros2 topic echo /horizontal_speed_cmd' && echo 'ros2 topic echo /arm_gripper_speed_cmd' && echo 'ros2 topic echo /motor8_position_input' && echo 'ros2 topic echo /motor8_position_status' && echo 'ros2 topic echo /pneumatic_gripper_cmd' && echo 'ros2 topic echo /kfs_staff_gripper_cmd' && echo 'ros2 topic echo /kfs_staff_gripper_status' && echo 'ros2 topic echo /damiao_control' && echo 'ros2 topic echo /damiao_motor_status' && echo 'ros2 param get /joystick_bridge max_speed_cm' && exec bash"
+tmux new-window -t "$SESSION:14" -n "monitor" \
+    "$BASE_CMD && echo 'Monitor commands:' && echo 'ros2 node list' && echo 'ros2 topic echo /joystick_data' && echo 'ros2 topic echo /local_driving' && echo 'ros2 topic echo /elevator_speed_cmd' && echo 'ros2 topic echo /horizontal_speed_cmd' && echo 'ros2 topic echo /motor_position_selector_status' && echo 'ros2 topic echo /motor7_position_status' && echo 'ros2 topic echo /motor8_position_status' && echo 'ros2 topic echo /pneumatic_gripper_cmd' && echo 'ros2 topic echo /kfs_staff_gripper_cmd' && echo 'ros2 topic echo /kfs_staff_gripper_status' && echo 'ros2 topic echo /damiao_control' && echo 'ros2 topic echo /damiao_motor_status' && echo 'ros2 param get /joystick_bridge max_speed_cm' && exec bash"
 
-tmux select-window -t "$SESSION:15"
+tmux select-window -t "$SESSION:14"
 
 echo "Started R1 control system in tmux session '$SESSION'."
 echo "ROS_DOMAIN_ID=$ROS_DOMAIN_ID"

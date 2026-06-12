@@ -181,3 +181,39 @@ ros2 topic echo /motor8_position_status
 
 Motor 8 的 `/damiao_motor_status` 应显示 `motor_id=8`、`feedback_fresh=1`、
 `enabled=1`、`active_control_mode=2`。没有看到这些状态时不要按 X。
+
+## 2026-06-13 Motor 7/8 位置控制按键
+
+```text
+启动默认：Motor 7
+START (+)：Motor 7 / Motor 8 切换
+X：当前电机 A/B 切换
+L2：当前电机负向微调
+R2：当前电机正向微调
+```
+
+切换时必须先松开 X、L2、R2。查看当前选择：
+
+```bash
+ros2 topic echo /motor_position_selector_status
+```
+
+其中 `data[0]` 为当前电机 ID，正常启动应为 `7.0`。
+
+## 2026-06-13 Motor 7/8 三位置操作
+
+当前所选电机每短按一次 X：
+
+```text
+第一次：0 -> +35 rad
+第二次：+35 -> -35 rad
+第三次：-35 -> 0 rad
+```
+
+`/motor7_position_status` 或 `/motor8_position_status` 的 `data[3]` 表示当前预设：
+
+```text
+0 = 0 rad
+1 = +35 rad
+2 = -35 rad
+```

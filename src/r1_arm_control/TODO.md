@@ -69,3 +69,29 @@
 - [ ] 复测手柄断连时多圈位置保持是否正确
 - [ ] 复测急停恢复后不会重放旧的 `33 rad` 目标
 - [ ] 完成 Motor 8 验证后，再决定是否迁移 Motor 7
+
+## 2026-06-13 Motor 7/8 共享位置控制
+
+- [x] Motor 7 复用 Motor 8 的位置 controller 实现，不复制控制算法
+- [x] Motor 7 默认参数暂与 Motor 8 完全相同
+- [x] 新增共享 selector，启动默认选择 Motor 7
+- [x] START 在 Motor 7/8 之间切换
+- [x] X 控制当前电机 A/B 切换
+- [x] L2/R2 按压深度控制当前电机正反微调
+- [x] X/L2/R2 未释放时禁止 START 切换
+- [x] 未选中的电机保持自己的目标位置
+- [x] 主启动脚本停用 Motor 7 旧 VEL controller/bridge
+- [x] 新增 selector 与 Motor 7 POS_VEL 无硬件测试
+- [ ] 实机确认启动后默认控制 Motor 7
+- [ ] 实机确认 START 切换后只控制所选电机
+- [ ] 根据 Motor 7 真实机构重新确定 A/B、软限位和速度
+
+## 2026-06-13 Motor 7/8 三位置
+
+- [x] 新增 `position_c_rad = -35.0 rad`
+- [x] `position_b_rad` 由 `33.0 rad` 调整为 `35.0 rad`
+- [x] X 改为 `0 -> +35 -> -35 -> 0` 三位置循环
+- [x] Motor 7/8 分别保存自己的三位置索引
+- [x] 新增三位置循环无硬件测试
+- [ ] 实机确认 Motor 7 三个位置顺序和方向
+- [ ] 实机确认 Motor 8 三个位置顺序和方向

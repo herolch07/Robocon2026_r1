@@ -162,3 +162,10 @@
 - [x] 新增 Motor 8 混合模式与急停恢复无硬件测试
 - [ ] 实机确认 Motor 8 CAN ID 为 8 且反馈正确归属
 - [ ] 后续按 chassis/mechanism 拆分两个 USB-CAN driver 实例和稳定设备路径
+
+## 2026-06-13 Motor 7 加入 POS_VEL
+
+- [x] 默认 `position_mode_motor_ids` 改为 `[7, 8]`
+- [x] Motor 7/8 共用位置模式恢复与安全保持逻辑
+- [x] 保持 Motor 1-6 的 VEL 控制不变
+- [ ] 实机确认 Motor 7 的 POS_VEL 反馈与急停恢复

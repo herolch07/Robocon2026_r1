@@ -25,8 +25,9 @@ setup(
             'horizontal_joystick_bridge_node = r1_arm_control.horizontal_joystick_bridge_node:main',
             'arm_gripper_controller_node = r1_arm_control.arm_gripper_controller_node:main',
             'arm_gripper_joystick_bridge_node = r1_arm_control.arm_gripper_joystick_bridge_node:main',
+            'motor7_position_controller_node = r1_arm_control.motor7_position_controller_node:main',
             'motor8_position_controller_node = r1_arm_control.motor8_position_controller_node:main',
-            'motor8_position_joystick_bridge_node = r1_arm_control.motor8_position_joystick_bridge_node:main',
+            'motor_position_selector_joystick_bridge_node = r1_arm_control.motor_position_selector_joystick_bridge_node:main',
         ],
     },
 )

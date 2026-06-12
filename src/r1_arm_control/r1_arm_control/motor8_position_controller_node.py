@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safe two-position and manual-trim controller for Damiao Motor 8."""
+"""Reusable safe three-position and manual-trim Damiao controller."""
 
 import time
 
@@ -12,21 +12,29 @@ from std_msgs.msg import Float32MultiArray
 class Motor8PositionControllerNode(Node):
     """Convert discrete/trim input into bounded POS_VEL commands.
 
-    The node waits for fresh Motor 8 feedback before publishing. On startup and
-    after feedback recovery it first targets the measured position, preventing
-    an old preset from being replayed after an E-stop or driver restart.
+    Constructor defaults preserve the Motor 8 executable. Motor 7 reuses this
+    class with different node/topic names and the same parameter defaults.
     """
 
     STATUS_POSITION_INDEX = 10
     STATUS_VELOCITY_INDEX = 11
     STATUS_MODE_INDEX = 13
 
-    def __init__(self):
-        super().__init__("motor8_position_controller_node")
+    def __init__(
+        self,
+        node_name="motor8_position_controller_node",
+        default_motor_id=8,
+        input_topic="/motor8_position_input",
+        status_topic="/motor8_position_status",
+    ):
+        super().__init__(node_name)
 
-        self.declare_parameter("motor_id", 8)
+        self.input_topic = input_topic
+        self.status_topic = status_topic
+        self.declare_parameter("motor_id", default_motor_id)
         self.declare_parameter("position_a_rad", 0.0)
-        self.declare_parameter("position_b_rad", 33.0)
+        self.declare_parameter("position_b_rad", 35.0)
+        self.declare_parameter("position_c_rad", -35.0)
         self.declare_parameter("min_position_rad", -35.0)
         self.declare_parameter("max_position_rad", 35.0)
         self.declare_parameter("preset_speed_rad_s", 3.0)
@@ -52,7 +60,7 @@ class Motor8PositionControllerNode(Node):
 
         self.input_sub = self.create_subscription(
             Float32MultiArray,
-            "/motor8_position_input",
+            self.input_topic,
             self.input_callback,
             10,
         )
@@ -66,14 +74,15 @@ class Motor8PositionControllerNode(Node):
             Float32MultiArray, "/damiao_control", 10
         )
         self.status_pub = self.create_publisher(
-            Float32MultiArray, "/motor8_position_status", 10
+            Float32MultiArray, self.status_topic, 10
         )
 
         publish_hz = max(float(self.get_parameter("publish_hz").value), 1.0)
         self.period = 1.0 / publish_hz
         self.timer = self.create_timer(self.period, self.timer_callback)
         self.get_logger().info(
-            "Motor 8 POS_VEL experiment initialized; waiting for feedback"
+            f"Motor {self.motor_id} POS_VEL controller initialized; "
+            "waiting for feedback"
         )
 
     @staticmethod
@@ -84,8 +93,8 @@ class Motor8PositionControllerNode(Node):
 
     @staticmethod
     def next_position_index(current):
-        """Toggle between position A (0) and position B (1)."""
-        return 1 if int(current) == 0 else 0
+        """Cycle position A (0), B (1), C (2), then return to A."""
+        return (int(current) + 1) % 3
 
     @classmethod
     def integrate_trim(cls, target, trim_input, trim_speed, dt, minimum, maximum):
@@ -97,7 +106,7 @@ class Motor8PositionControllerNode(Node):
         """Accept [toggle_event, trim_input, input_valid] from the bridge."""
         if len(msg.data) < 3:
             self.get_logger().warn(
-                "Invalid /motor8_position_input: expected [toggle, trim, valid]"
+                f"Invalid {self.input_topic}: expected [toggle, trim, valid]"
             )
             return
         self.last_input_time = time.monotonic()
@@ -111,17 +120,17 @@ class Motor8PositionControllerNode(Node):
             self.selected_position = self.next_position_index(
                 self.selected_position
             )
-            parameter = (
-                "position_b_rad"
-                if self.selected_position == 1
-                else "position_a_rad"
-            )
+            parameter = {
+                0: "position_a_rad",
+                1: "position_b_rad",
+                2: "position_c_rad",
+            }[self.selected_position]
             self.target_position = self.limit_position(
                 float(self.get_parameter(parameter).value)
             )
 
     def feedback_callback(self, msg):
-        """Read Motor 8 feedback appended by damiao_node."""
+        """Read this controller's motor feedback appended by damiao_node."""
         if len(msg.data) <= self.STATUS_MODE_INDEX:
             return
         if int(msg.data[0]) != self.motor_id:
@@ -148,7 +157,7 @@ class Motor8PositionControllerNode(Node):
             self.recovery_hold_required = not ready
 
     def limit_position(self, value):
-        """Apply configured Motor 8 software limits."""
+        """Apply this motor's configured software limits."""
         return self.clamp_position(
             value,
             self.get_parameter("min_position_rad").value,

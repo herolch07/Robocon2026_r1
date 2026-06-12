@@ -901,3 +901,9 @@ position_hold_speed_rad_s = 0.1 rad/s
 
 模式不匹配的命令会被拒绝，例如默认配置下向 Motor 8 发送 `mode=3`，或向 Motor 1-7
 发送 `mode=2`。当前版本仍使用一个 USB-CAN；双 USB-CAN 总线拆分属于后续独立改动。
+
+## 2026-06-13 - Motor 7/8 默认 POS_VEL
+
+`position_mode_motor_ids` 默认值由 `[8]` 改为 `[7, 8]`。因此 Motor 1-6 使用 VEL，
+Motor 7-8 使用 POS_VEL。Motor 7/8 的初始化、反馈恢复、安全解锁和位置命令 watchdog
+采用相同底层逻辑。向 Motor 7/8 发送 VEL 命令会被模式检查拒绝。

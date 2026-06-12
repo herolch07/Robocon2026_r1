@@ -26,7 +26,7 @@ from base_omniwheel_r2_700.DM_CAN import (
 
 DEVICE_ID = "usb-HDSC_CDC_Device_00000000050C-if00"
 DEFAULT_MOTOR_IDS = [1, 2, 3, 4, 5, 6, 7, 8]
-DEFAULT_POSITION_MODE_MOTOR_IDS = [8]
+DEFAULT_POSITION_MODE_MOTOR_IDS = [7, 8]
 RECONNECT_INTERVAL = 2.0
 RECONNECT_MAX_ATTEMPTS = 0  # 0 means retry forever at a low rate.
 

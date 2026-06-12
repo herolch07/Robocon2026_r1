@@ -256,3 +256,34 @@ ros2 topic echo /damiao_motor_status
 
 特别记录 `actual_q` 在目标超过 `12.5 rad` 后是否继续真实增长。如果反馈固定在边界，
 不能依赖当前反馈完成多圈到位、断连保持或恢复同步。
+
+## 2026-06-13 Motor 7/8 共享按键测试
+
+1. 启动后检查 `/motor_position_selector_status`，预期 `selected_motor_id = 7`。
+2. 短按 Motor 7 的 L2/R2，确认只有 Motor 7 微调；X 控制 Motor 7 A/B。
+3. 松开 X/L2/R2 后按 START，预期 selected ID 变为 8。
+4. 再测试 L2/R2/X，确认只有 Motor 8 动作，Motor 7 保持。
+5. 按住任一 L2/R2/X 时按 START，必须保持当前选择，`switch_blocked = 1`。
+6. 手柄断连时，两台电机都停止修改目标并保持实时位置。
+
+监控：
+
+```bash
+ros2 topic echo /motor_position_selector_status
+ros2 topic echo /motor7_position_status
+ros2 topic echo /motor8_position_status
+ros2 topic echo /damiao_motor_status
+```
+
+## 2026-06-13 Motor 7/8 三位置测试
+
+对当前所选电机连续短按 X 三次，预期：
+
+```text
+按第1次：target_q = +35，selected_position = 1
+按第2次：target_q = -35，selected_position = 2
+按第3次：target_q = 0，selected_position = 0
+```
+
+切换到另一台电机后重复测试，确认两台电机的索引互不影响。测试多圈目标时保持急停可用，
+并继续观察超过 `+-12.5 rad` 后的反馈是否真实可靠。

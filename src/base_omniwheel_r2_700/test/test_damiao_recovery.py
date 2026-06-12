@@ -48,7 +48,7 @@ def make_node(state, motor_id=1, enabled=True, age=0.0, position=0.0):
         state_dq=0.0,
         state_tau=0.0,
         NowControlMode=(
-            Control_Type.POS_VEL if motor_id == 8 else Control_Type.VEL
+            Control_Type.POS_VEL if motor_id in (7, 8) else Control_Type.VEL
         ),
     )
     node.is_connected = True
@@ -70,7 +70,7 @@ def make_node(state, motor_id=1, enabled=True, age=0.0, position=0.0):
         "neutral_speed_threshold_rad_s": 0.02,
         "neutral_position_tolerance_rad": 0.05,
         "position_hold_speed_rad_s": 0.1,
-        "position_mode_motor_ids": [8],
+        "position_mode_motor_ids": [7, 8],
     }
     node.get_parameter = lambda name: FakeParameter(values[name])
     node.get_logger = lambda: SimpleNamespace(
@@ -86,8 +86,10 @@ def velocity_command(speed):
     return SimpleNamespace(data=[1.0, 3.0, float(speed), 0.0])
 
 
-def position_command(position, speed=0.3):
-    return SimpleNamespace(data=[8.0, 2.0, float(speed), float(position)])
+def position_command(motor_id, position, speed=0.3):
+    return SimpleNamespace(
+        data=[float(motor_id), 2.0, float(speed), float(position)]
+    )
 
 
 def test_nonzero_velocity_is_blocked_until_neutral_after_recovery():
@@ -122,11 +124,11 @@ def test_motor8_uses_position_mode_and_neutral_current_position():
         STATE_WAIT_NEUTRAL, motor_id=8, position=0.2
     )
 
-    node.control_callback(position_command(0.5))
+    node.control_callback(position_command(8, 0.5))
     assert node.motor_states[8] == STATE_WAIT_NEUTRAL
     assert node.motor_control.calls[-1] == ("pos_vel", 0.2, 0.1)
 
-    node.control_callback(position_command(0.2))
+    node.control_callback(position_command(8, 0.2))
     assert node.motor_states[8] == STATE_READY
     assert node.motor_control.calls[-1] == ("pos_vel", 0.2, 0.3)
 
@@ -143,3 +145,18 @@ def test_motor8_recovery_restores_pos_vel_without_old_target():
         ("mode", 2),
         ("enable", 8),
     ]
+
+
+
+def test_motor7_uses_position_mode_and_neutral_current_position():
+    node, _ = make_node(
+        STATE_WAIT_NEUTRAL, motor_id=7, position=-0.3
+    )
+
+    node.control_callback(position_command(7, 1.0))
+    assert node.motor_states[7] == STATE_WAIT_NEUTRAL
+    assert node.motor_control.calls[-1] == ("pos_vel", -0.3, 0.1)
+
+    node.control_callback(position_command(7, -0.3))
+    assert node.motor_states[7] == STATE_READY
+    assert node.motor_control.calls[-1] == ("pos_vel", -0.3, 0.3)
