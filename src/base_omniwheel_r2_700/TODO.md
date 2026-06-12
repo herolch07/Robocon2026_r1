@@ -149,3 +149,16 @@
 - [ ] 实机测试 0°/22°/45°/90° 起步与方向切换偏航
 - [ ] 记录偏航发生在加速阶段还是匀速阶段
 - [ ] 若匀速仍偏航，检查轮组接地并校准四轮输出增益
+
+
+## 2026-06-12 Motor 8 POS_VEL 支持
+
+- [x] 默认电机列表增加 Motor 8
+- [x] 新增 `position_mode_motor_ids = [8]` 混合模式参数
+- [x] Motor 1-7 保持 VEL，Motor 8 初始化和恢复使用 POS_VEL
+- [x] POS_VEL 恢复时保持实时位置，不重放旧目标
+- [x] 增加位置命令 watchdog
+- [x] `/damiao_motor_status` 追加 q/dq/tau/control_mode
+- [x] 新增 Motor 8 混合模式与急停恢复无硬件测试
+- [ ] 实机确认 Motor 8 CAN ID 为 8 且反馈正确归属
+- [ ] 后续按 chassis/mechanism 拆分两个 USB-CAN driver 实例和稳定设备路径

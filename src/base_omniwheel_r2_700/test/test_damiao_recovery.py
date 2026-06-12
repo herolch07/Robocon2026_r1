@@ -3,6 +3,7 @@
 import time
 from types import SimpleNamespace
 
+from base_omniwheel_r2_700.DM_CAN import Control_Type
 from base_omniwheel_r2_700.damiao_node import (
     MotorControllerNode,
     STATE_READY,
@@ -11,12 +12,21 @@ from base_omniwheel_r2_700.damiao_node import (
 )
 
 
+class FakeParameter:
+    def __init__(self, value):
+        self.value = value
+
+    def get_parameter_value(self):
+        return SimpleNamespace(integer_array_value=list(self.value))
+
+
 class FakeMotorControl:
     def __init__(self):
         self.calls = []
 
     def switchControlMode(self, motor, mode):
         self.calls.append(("mode", int(mode)))
+        motor.NowControlMode = mode
 
     def enable(self, motor):
         self.calls.append(("enable", motor.SlaveID))
@@ -24,32 +34,45 @@ class FakeMotorControl:
     def control_Vel(self, motor, speed):
         self.calls.append(("vel", float(speed)))
 
+    def control_Pos_Vel(self, motor, position, speed):
+        self.calls.append(("pos_vel", float(position), float(speed)))
 
-def make_node(state, enabled=True, age=0.0):
+
+def make_node(state, motor_id=1, enabled=True, age=0.0, position=0.0):
     node = object.__new__(MotorControllerNode)
     motor = SimpleNamespace(
-        SlaveID=1,
+        SlaveID=motor_id,
         isEnable=enabled,
         last_feedback_time=time.monotonic() - age,
+        state_q=position,
+        state_dq=0.0,
+        state_tau=0.0,
+        NowControlMode=(
+            Control_Type.POS_VEL if motor_id == 8 else Control_Type.VEL
+        ),
     )
     node.is_connected = True
     node.motor_control = FakeMotorControl()
-    node.motors = {1: motor}
-    node.motor_states = {1: state}
-    node.recovery_attempts = {1: 0}
-    node.last_recovery_time = {1: 0.0}
-    node.neutral_received = {1: False}
-    node.watchdog_stopped = {1: True}
+    node.motors = {motor_id: motor}
+    node.motor_states = {motor_id: state}
+    node.recovery_attempts = {motor_id: 0}
+    node.last_recovery_time = {motor_id: 0.0}
+    node.neutral_received = {motor_id: False}
+    node.watchdog_stopped = {motor_id: True}
+    node.position_watchdog_held = {motor_id: True}
     node.motor_timers = {}
     node.last_velocity_command_time = {}
+    node.last_position_command_time = {}
     node.latest_commands = {}
-    node.get_parameter = lambda name: SimpleNamespace(
-        value={
-            "feedback_timeout_sec": 0.5,
-            "recovery_retry_sec": 2.0,
-            "neutral_speed_threshold_rad_s": 0.02,
-        }[name]
-    )
+    values = {
+        "feedback_timeout_sec": 0.5,
+        "recovery_retry_sec": 2.0,
+        "neutral_speed_threshold_rad_s": 0.02,
+        "neutral_position_tolerance_rad": 0.05,
+        "position_hold_speed_rad_s": 0.1,
+        "position_mode_motor_ids": [8],
+    }
+    node.get_parameter = lambda name: FakeParameter(values[name])
     node.get_logger = lambda: SimpleNamespace(
         info=lambda *args, **kwargs: None,
         warn=lambda *args, **kwargs: None,
@@ -59,25 +82,29 @@ def make_node(state, enabled=True, age=0.0):
     return node, motor
 
 
-def command(speed):
+def velocity_command(speed):
     return SimpleNamespace(data=[1.0, 3.0, float(speed), 0.0])
 
 
-def test_nonzero_is_blocked_until_neutral_after_recovery():
+def position_command(position, speed=0.3):
+    return SimpleNamespace(data=[8.0, 2.0, float(speed), float(position)])
+
+
+def test_nonzero_velocity_is_blocked_until_neutral_after_recovery():
     node, _ = make_node(STATE_WAIT_NEUTRAL)
 
-    node.control_callback(command(1.0))
+    node.control_callback(velocity_command(1.0))
     assert node.motor_states[1] == STATE_WAIT_NEUTRAL
     assert node.motor_control.calls[-1] == ("vel", 0.0)
 
-    node.control_callback(command(0.0))
+    node.control_callback(velocity_command(0.0))
     assert node.motor_states[1] == STATE_READY
 
-    node.control_callback(command(1.0))
+    node.control_callback(velocity_command(1.0))
     assert node.motor_control.calls[-1] == ("vel", 1.0)
 
 
-def test_feedback_timeout_sends_mode_enable_zero_recovery_sequence():
+def test_velocity_feedback_timeout_restores_vel_mode_and_zero():
     node, _ = make_node(STATE_READY, enabled=False, age=1.0)
 
     node._recovery_watchdog()
@@ -87,4 +114,32 @@ def test_feedback_timeout_sends_mode_enable_zero_recovery_sequence():
         ("mode", 3),
         ("enable", 1),
         ("vel", 0.0),
+    ]
+
+
+def test_motor8_uses_position_mode_and_neutral_current_position():
+    node, _ = make_node(
+        STATE_WAIT_NEUTRAL, motor_id=8, position=0.2
+    )
+
+    node.control_callback(position_command(0.5))
+    assert node.motor_states[8] == STATE_WAIT_NEUTRAL
+    assert node.motor_control.calls[-1] == ("pos_vel", 0.2, 0.1)
+
+    node.control_callback(position_command(0.2))
+    assert node.motor_states[8] == STATE_READY
+    assert node.motor_control.calls[-1] == ("pos_vel", 0.2, 0.3)
+
+
+def test_motor8_recovery_restores_pos_vel_without_old_target():
+    node, _ = make_node(
+        STATE_READY, motor_id=8, enabled=False, age=1.0, position=0.2
+    )
+
+    node._recovery_watchdog()
+
+    assert node.motor_states[8] == STATE_RECOVERING
+    assert node.motor_control.calls == [
+        ("mode", 2),
+        ("enable", 8),
     ]

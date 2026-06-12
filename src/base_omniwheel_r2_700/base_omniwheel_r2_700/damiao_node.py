@@ -1,9 +1,9 @@
 """ROS 2 Damiao motor driver with watchdog and E-stop power recovery.
 
-The node serves Motor 1-7 through one USB-CAN adapter. It blocks non-zero
-commands while feedback is missing or a motor is disabled, retries VEL-mode
-initialization at a low rate, and requires a neutral command before motion is
-unlocked after recovery.
+The node serves configured Damiao motors through one USB-CAN adapter. It blocks
+unsafe commands while feedback is missing or a motor is disabled, restores each
+motor's configured control mode, and requires a neutral command before motion
+is unlocked after recovery.
 """
 
 import os
@@ -25,8 +25,8 @@ from base_omniwheel_r2_700.DM_CAN import (
 
 
 DEVICE_ID = "usb-HDSC_CDC_Device_00000000050C-if00"
-DEFAULT_MOTOR_IDS = [1, 2, 3, 4, 5, 6, 7]
-DEFAULT_CONTROL_MODE = Control_Type.VEL
+DEFAULT_MOTOR_IDS = [1, 2, 3, 4, 5, 6, 7, 8]
+DEFAULT_POSITION_MODE_MOTOR_IDS = [8]
 RECONNECT_INTERVAL = 2.0
 RECONNECT_MAX_ATTEMPTS = 0  # 0 means retry forever at a low rate.
 
@@ -70,13 +70,20 @@ class MotorControllerNode(Node):
         self.declare_parameter("feedback_timeout_sec", 0.5)
         self.declare_parameter("recovery_retry_sec", 2.0)
         self.declare_parameter("neutral_speed_threshold_rad_s", 0.02)
+        self.declare_parameter("neutral_position_tolerance_rad", 0.05)
+        self.declare_parameter(
+            "position_mode_motor_ids", DEFAULT_POSITION_MODE_MOTOR_IDS
+        )
+        self.declare_parameter("position_hold_speed_rad_s", 0.1)
         self.declare_parameter("status_hz", 5.0)
 
         self.is_connected = False
         self.reconnect_attempts = 0
         self.motor_timers = {}
         self.last_velocity_command_time = {}
+        self.last_position_command_time = {}
         self.watchdog_stopped = {}
+        self.position_watchdog_held = {}
         self.latest_commands = {}
         self.motor_states = {}
         self.recovery_attempts = {}
@@ -116,6 +123,21 @@ class MotorControllerNode(Node):
             .integer_array_value
         ]
 
+    def _position_mode_motor_ids(self):
+        """Return motors configured for position-velocity control."""
+        return {
+            int(motor_id)
+            for motor_id in self.get_parameter("position_mode_motor_ids")
+            .get_parameter_value()
+            .integer_array_value
+        }
+
+    def _control_mode_for_motor(self, motor_id):
+        """Return the configured control mode for one motor."""
+        if motor_id in self._position_mode_motor_ids():
+            return Control_Type.POS_VEL
+        return Control_Type.VEL
+
     def _reset_motor_runtime_state(self, motor_ids):
         """Reset recovery state while preserving the latest upstream commands."""
         now = time.monotonic()
@@ -126,7 +148,9 @@ class MotorControllerNode(Node):
         self.last_recovery_time = {motor_id: now for motor_id in motor_ids}
         self.neutral_received = {motor_id: False for motor_id in motor_ids}
         self.last_velocity_command_time.clear()
+        self.last_position_command_time.clear()
         self.watchdog_stopped = {motor_id: True for motor_id in motor_ids}
+        self.position_watchdog_held = {motor_id: True for motor_id in motor_ids}
 
     def _init_hardware(self):
         """Open the serial adapter and send initial safe setup commands."""
@@ -166,23 +190,25 @@ class MotorControllerNode(Node):
                 self.motors[motor_id] = motor
                 self.motor_control.addMotor(motor)
 
+            position_mode_ids = self._position_mode_motor_ids()
             self.get_logger().info(
-                "Sending initial VEL mode, zero-position, enable, and zero-speed "
-                "commands; waiting for feedback confirmation."
+                "Sending configured control modes, zero-position, and enable "
+                "commands; waiting for feedback confirmation. "
+                f"POS_VEL motors: {sorted(position_mode_ids)}"
             )
             for motor_id, motor in self.motors.items():
                 try:
-                    self.motor_control.switchControlMode(
-                        motor, DEFAULT_CONTROL_MODE
-                    )
+                    control_mode = self._control_mode_for_motor(motor_id)
+                    self.motor_control.switchControlMode(motor, control_mode)
                     self.motor_control.set_zero_position(motor)
                     self.motor_control.enable(motor)
-                    self.motor_control.control_Vel(motor, 0.0)
+                    if control_mode == Control_Type.VEL:
+                        self.motor_control.control_Vel(motor, 0.0)
                     self.recovery_attempts[motor_id] = 1
                     self.last_recovery_time[motor_id] = time.monotonic()
                     self.get_logger().info(
-                        f"Motor {motor_id} initialization commands sent; "
-                        "waiting for enabled feedback."
+                        f"Motor {motor_id} initialization commands sent "
+                        f"({control_mode.name}); waiting for enabled feedback."
                     )
                 except Exception as exc:
                     self.get_logger().error(
@@ -217,7 +243,7 @@ class MotorControllerNode(Node):
                     self.neutral_received[motor_id] = False
                     self.get_logger().warn(
                         f"Motor {motor_id} enabled feedback confirmed; "
-                        "waiting for a zero-speed command before motion is allowed."
+                        "waiting for a safe neutral command before motion is allowed."
                     )
         except serial.SerialException as exc:
             self.get_logger().error(f"Feedback serial error: {exc}")
@@ -245,6 +271,7 @@ class MotorControllerNode(Node):
         self.motor_states[motor_id] = STATE_RECOVERING
         self.neutral_received[motor_id] = False
         self.watchdog_stopped[motor_id] = True
+        self.position_watchdog_held[motor_id] = True
         timer = self.motor_timers.pop(motor_id, None)
         if timer is not None:
             timer.cancel()
@@ -291,15 +318,15 @@ class MotorControllerNode(Node):
                 self.recovery_attempts.get(motor_id, 0) + 1
             )
             try:
-                self.motor_control.switchControlMode(
-                    motor, DEFAULT_CONTROL_MODE
-                )
+                control_mode = self._control_mode_for_motor(motor_id)
+                self.motor_control.switchControlMode(motor, control_mode)
                 self.motor_control.enable(motor)
-                self.motor_control.control_Vel(motor, 0.0)
+                if control_mode == Control_Type.VEL:
+                    self.motor_control.control_Vel(motor, 0.0)
                 self.get_logger().warn(
                     f"Motor {motor_id} recovery attempt "
-                    f"{self.recovery_attempts[motor_id]} sent: VEL + enable + zero; "
-                    "waiting for feedback."
+                    f"{self.recovery_attempts[motor_id]} sent: "
+                    f"{control_mode.name} + enable; waiting for feedback."
                 )
             except serial.SerialException as exc:
                 self.get_logger().error(
@@ -379,12 +406,22 @@ class MotorControllerNode(Node):
                 self.motor_states[motor_id] = STATE_DISABLED
                 self.neutral_received[motor_id] = False
                 self.last_velocity_command_time.pop(motor_id, None)
+                self.last_position_command_time.pop(motor_id, None)
                 self.watchdog_stopped[motor_id] = True
+                self.position_watchdog_held[motor_id] = True
                 self.get_logger().info(f"Motor {motor_id} disabled")
                 return
             if mode not in (2, 3):
                 self.get_logger().warn(
                     f"Unsupported motor mode {mode} for Motor {motor_id}"
+                )
+                return
+
+            configured_mode = self._control_mode_for_motor(motor_id)
+            if mode != int(configured_mode):
+                self.get_logger().warn(
+                    f"Rejected mode {mode} for Motor {motor_id}; "
+                    f"configured mode is {configured_mode.name}"
                 )
                 return
 
@@ -400,7 +437,7 @@ class MotorControllerNode(Node):
                 self._enter_recovery(motor_id, "feedback lost before command")
                 state = STATE_RECOVERING
 
-            neutral_threshold = max(
+            neutral_speed_threshold = max(
                 float(
                     self.get_parameter(
                         "neutral_speed_threshold_rad_s"
@@ -408,11 +445,27 @@ class MotorControllerNode(Node):
                 ),
                 0.0,
             )
+            neutral_position_tolerance = max(
+                float(
+                    self.get_parameter(
+                        "neutral_position_tolerance_rad"
+                    ).value
+                ),
+                0.0,
+            )
+            neutral_command = (
+                mode == int(Control_Type.VEL)
+                and abs(speed) <= neutral_speed_threshold
+            ) or (
+                mode == int(Control_Type.POS_VEL)
+                and abs(param4 - float(motor.state_q))
+                <= neutral_position_tolerance
+            )
             if (
                 state == STATE_WAIT_NEUTRAL
                 and self._feedback_is_fresh(motor)
                 and motor.isEnable
-                and abs(speed) <= neutral_threshold
+                and neutral_command
             ):
                 self.neutral_received[motor_id] = True
                 self.motor_states[motor_id] = STATE_READY
@@ -422,11 +475,13 @@ class MotorControllerNode(Node):
                 )
 
             if state != STATE_READY:
-                self._send_safe_zero(motor, motor_id)
+                self._send_safe_command(motor, motor_id)
                 return
 
             if mode == 2:
                 self.motor_control.control_Pos_Vel(motor, param4, speed)
+                self.last_position_command_time[motor_id] = time.monotonic()
+                self.position_watchdog_held[motor_id] = False
             else:
                 self.motor_control.control_Vel(motor, speed)
                 if param4 <= 0:
@@ -449,8 +504,21 @@ class MotorControllerNode(Node):
         except Exception as exc:
             self.get_logger().error(f"Motor control error: {exc}")
 
-    def _send_safe_zero(self, motor, motor_id):
-        """Send zero only; never replay a blocked non-zero command."""
+    def _send_safe_command(self, motor, motor_id):
+        """Send a mode-appropriate neutral without replaying an old target."""
+        if self._control_mode_for_motor(motor_id) == Control_Type.POS_VEL:
+            if not self._feedback_is_fresh(motor):
+                return
+            hold_speed = max(
+                float(self.get_parameter("position_hold_speed_rad_s").value),
+                0.0,
+            )
+            self.motor_control.control_Pos_Vel(
+                motor, float(motor.state_q), hold_speed
+            )
+            self.position_watchdog_held[motor_id] = True
+            return
+
         self.motor_control.control_Vel(motor, 0.0)
         self.watchdog_stopped[motor_id] = True
 
@@ -498,6 +566,41 @@ class MotorControllerNode(Node):
                     f"Command watchdog failed for motor {motor_id}: {exc}"
                 )
 
+        for motor_id, last_time in list(self.last_position_command_time.items()):
+            if now - last_time <= timeout_sec:
+                continue
+            if self.position_watchdog_held.get(motor_id, False):
+                continue
+            motor = self.motors.get(motor_id)
+            if motor is None or not self._feedback_is_fresh(motor):
+                continue
+            try:
+                hold_speed = max(
+                    float(
+                        self.get_parameter(
+                            "position_hold_speed_rad_s"
+                        ).value
+                    ),
+                    0.0,
+                )
+                self.motor_control.control_Pos_Vel(
+                    motor, float(motor.state_q), hold_speed
+                )
+                self.position_watchdog_held[motor_id] = True
+                self.get_logger().warn(
+                    f"Motor {motor_id} position command timeout after "
+                    f"{timeout_sec:.2f}s; holding current feedback position"
+                )
+            except serial.SerialException as exc:
+                self.get_logger().error(
+                    f"Serial communication error in position watchdog: {exc}"
+                )
+                self.is_connected = False
+            except Exception as exc:
+                self.get_logger().error(
+                    f"Position watchdog failed for motor {motor_id}: {exc}"
+                )
+
     def _publish_status(self):
         """Publish one status message per motor for simple ros2 topic echo."""
         if not hasattr(self, "motors"):
@@ -524,6 +627,10 @@ class MotorControllerNode(Node):
                     if motor.rotor_temperature_c is None
                     else float(motor.rotor_temperature_c)
                 ),
+                float(motor.state_q),
+                float(motor.state_dq),
+                float(motor.state_tau),
+                float(int(motor.NowControlMode)),
             ]
             self.status_pub.publish(msg)
 
@@ -533,7 +640,25 @@ class MotorControllerNode(Node):
         if self.is_connected and hasattr(self, "motor_control"):
             for motor in getattr(self, "motors", {}).values():
                 try:
-                    self.motor_control.control_Vel(motor, 0.0)
+                    motor_id = int(motor.SlaveID)
+                    if (
+                        self._control_mode_for_motor(motor_id)
+                        == Control_Type.POS_VEL
+                        and self._feedback_is_fresh(motor)
+                    ):
+                        hold_speed = max(
+                            float(
+                                self.get_parameter(
+                                    "position_hold_speed_rad_s"
+                                ).value
+                            ),
+                            0.0,
+                        )
+                        self.motor_control.control_Pos_Vel(
+                            motor, float(motor.state_q), hold_speed
+                        )
+                    else:
+                        self.motor_control.control_Vel(motor, 0.0)
                 except Exception:
                     pass
         super().destroy_node()

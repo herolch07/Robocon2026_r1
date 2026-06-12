@@ -161,3 +161,23 @@ Use SSH into R1 to run `ros2 node list` / `ros2 topic echo`. Do not remove this 
 ```bash
 ros2 topic echo /damiao_motor_status
 ```
+
+
+## 2026-06-12 Motor 8 位置实验操作
+
+```text
+X: Motor 8 在位置 A/B 间切换
+L3: Motor 8 负向微调
+R3: Motor 8 正向微调
+```
+
+默认试验值为 A=`0.0 rad`、B=`0.3 rad`、软限位=`-0.5..0.5 rad`。第一次测试必须
+离地或解除机构负载。启动后先确认：
+
+```bash
+ros2 topic echo /damiao_motor_status
+ros2 topic echo /motor8_position_status
+```
+
+Motor 8 的 `/damiao_motor_status` 应显示 `motor_id=8`、`feedback_fresh=1`、
+`enabled=1`、`active_control_mode=2`。没有看到这些状态时不要按 X。

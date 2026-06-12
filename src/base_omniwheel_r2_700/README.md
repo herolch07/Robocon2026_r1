@@ -872,3 +872,32 @@ max_wheel_speed_rad_s = 40.0 rad/s
 3. 测试低速到高速、22° 到 45°、前进到斜向的方向切换。
 4. 区分“只在加速时偏航”与“达到匀速后仍持续偏航”。
 5. 若匀速仍偏航，再进行机械检查和四轮增益校准，不应继续修改矢量限幅比例。
+
+
+## 2026-06-12 - Motor 8 混合控制模式实验
+
+`damiao_node` 默认电机列表扩展为 Motor 1-8。Motor 1-7 继续使用 `VEL`，仅 Motor 8
+使用 `POS_VEL`。控制模式通过参数配置：
+
+```text
+motor_ids = [1,2,3,4,5,6,7,8]
+position_mode_motor_ids = [8]
+neutral_position_tolerance_rad = 0.05 rad
+position_hold_speed_rad_s = 0.1 rad/s
+```
+
+启动和急停恢复时，driver 按电机 ID 恢复对应模式。Motor 8 在收到与实时反馈位置足够
+接近的安全命令前不会解锁运动；恢复过程不会重放旧目标。位置命令超过
+`command_timeout_sec = 0.5 s` 未刷新时，driver 使用最新反馈位置发送保持命令。
+
+`/damiao_motor_status` 原有 10 个字段顺序保持不变，并在末尾追加：
+
+```text
+[10] position_rad
+[11] velocity_rad_s
+[12] torque
+[13] active_control_mode   # 2=POS_VEL, 3=VEL
+```
+
+模式不匹配的命令会被拒绝，例如默认配置下向 Motor 8 发送 `mode=3`，或向 Motor 1-7
+发送 `mode=2`。当前版本仍使用一个 USB-CAN；双 USB-CAN 总线拆分属于后续独立改动。

@@ -199,3 +199,60 @@ R1 不应看到 R2 的 `/damiao_motor_controller`、`/global_navigation_node`、
 ## 2026-06-07 急停自动恢复测试
 
 仅在底盘架空时测试。启动后监控 `ros2 topic echo /damiao_motor_status`，按下急停超过 10 秒，再释放急停且保持手柄回中。预期状态 `RECOVERING(0) -> WAIT_NEUTRAL(1) -> READY(2)`，无需重启 bash。释放急停时故意保持摇杆非零，电机必须保持零速；松杆回中后才可解锁。
+
+
+## 2026-06-12 Motor 8 POS_VEL 离地测试
+
+1. 确认 Motor 8 的 CAN ID 已设为 `8`，机构不会撞限位，急停可立即操作。
+2. 重新构建并启动：
+
+```bash
+colcon build --symlink-install --packages-select base_omniwheel_r2_700 r1_arm_control
+source install/setup.bash
+./r1_start_base_1_0.sh
+```
+
+3. 监控：
+
+```bash
+ros2 topic echo /motor8_position_input
+ros2 topic echo /motor8_position_status
+ros2 topic echo /damiao_motor_status
+```
+
+4. 先短按 R3/L3，确认正负方向和微调保持；再按一次 X，目标应从 `0.0` 变为
+`0.3 rad`；再次按 X 应回到 `0.0 rad`。
+5. 拔掉手柄或停止 bridge 后，Motor 8 应停止继续追赶旧目标并保持实时位置。
+6. 急停恢复后，必须先收到新鲜反馈并同步当前位置，旧的 A/B 目标不得自动重放。
+
+根据实测临时调参：
+
+```bash
+ros2 param set /motor8_position_controller_node position_b_rad 0.2
+ros2 param set /motor8_position_controller_node min_position_rad -0.3
+ros2 param set /motor8_position_controller_node max_position_rad 0.3
+ros2 param set /motor8_position_controller_node preset_speed_rad_s 0.2
+```
+
+## 2026-06-13 Motor 8 多圈参数复测
+
+当前源码默认值：
+
+```text
+A = 0.0 rad
+B = 33.0 rad
+soft limit = -35.0..35.0 rad
+preset speed = 3.0 rad/s
+trim speed = 2.0 rad/s
+```
+
+复测时先保持无危险负载，并依次检查：X 到 B、X 回 A、L3/R3 两端软限位、松键保持、
+手柄断连保持和急停恢复。同步监控：
+
+```bash
+ros2 topic echo /motor8_position_status
+ros2 topic echo /damiao_motor_status
+```
+
+特别记录 `actual_q` 在目标超过 `12.5 rad` 后是否继续真实增长。如果反馈固定在边界，
+不能依赖当前反馈完成多圈到位、断连保持或恢复同步。

@@ -239,3 +239,137 @@ ros2 topic echo /horizontal_status
 ros2 topic echo /arm_gripper_status
 ros2 topic echo /damiao_control
 ```
+
+
+## 2026-06-12 v5 Motor 8 双位置 POS_VEL 实验
+
+本版本不修改 Motor 7。新增 Motor 8 作为 DM-S3519 位置速度模式实验电机，复用唯一的
+`damiao_node` 和现有 `/damiao_control` 底层接口。
+
+### Nodes
+
+#### motor8_position_joystick_bridge_node
+
+订阅：
+
+```text
+/joystick_data my_joystick_msgs/msg/Joystick
+```
+
+发布：
+
+```text
+/motor8_position_input std_msgs/msg/Float32MultiArray
+数据: [toggle_event, trim_input, input_valid]
+```
+
+默认控制：
+
+```text
+X: 在位置 A/B 之间切换，上升沿只触发一次
+L3: 目标角度负向微调
+R3: 目标角度正向微调
+L3 + R3: 相互抵消
+```
+
+参数：
+
+```text
+toggle_button = "x"
+negative_trim_button = "l3"
+positive_trim_button = "r3"
+publish_hz = 20.0 Hz
+input_timeout_sec = 0.3 s
+```
+
+超过 `input_timeout_sec` 未收到 `/joystick_data` 后发布
+`[0.0, 0.0, 0.0]`，禁止切换并停止微调。
+
+#### motor8_position_controller_node
+
+订阅：
+
+```text
+/motor8_position_input
+/damiao_motor_status
+```
+
+发布：
+
+```text
+/damiao_control = [8.0, 2.0, max_speed_rad_s, target_position_rad]
+/motor8_position_status = [target_q, actual_q, actual_dq, selected_position,
+                           trim_input, feedback_valid, input_timeout,
+                           motor_id, at_target]
+```
+
+默认参数仅用于低速离地实验：
+
+```text
+motor_id = 8
+position_a_rad = 0.0 rad
+position_b_rad = 0.3 rad
+min_position_rad = -0.5 rad
+max_position_rad = 0.5 rad
+preset_speed_rad_s = 0.3 rad/s
+trim_speed_rad_s = 0.1 rad/s
+hold_speed_rad_s = 0.1 rad/s
+position_tolerance_rad = 0.03 rad
+input_timeout_sec = 0.3 s
+feedback_timeout_sec = 0.5 s
+publish_hz = 20.0 Hz
+```
+
+controller 只有在 Motor 8 反馈新鲜、已使能且驱动器报告 `POS_VEL` 时才发布运动命令。
+启动、急停恢复或反馈重新出现时，先将目标同步为实时位置，不重放恢复前的旧预设。
+手柄断连或 bridge topic 超时后，目标收回到实时位置并保持。所有预设和微调都经过
+`min_position_rad` / `max_position_rad` 软限位。
+
+### 启动
+
+```bash
+ros2 run r1_arm_control motor8_position_controller_node
+ros2 run r1_arm_control motor8_position_joystick_bridge_node
+```
+
+完整系统执行 `./r1_start_base_1_0.sh` 时会自动启动这两个节点。
+
+### 调试
+
+```bash
+ros2 topic echo /motor8_position_input
+ros2 topic echo /motor8_position_status
+ros2 topic echo /damiao_motor_status
+ros2 topic echo /damiao_control
+
+ros2 param get /motor8_position_controller_node position_a_rad
+ros2 param get /motor8_position_controller_node position_b_rad
+ros2 param set /motor8_position_controller_node position_b_rad 0.2
+```
+
+首次实机测试必须让机构脱离负载或确保不会撞限位，并保持急停可立即操作。DM-S3519
+上电位置会被当前 `damiao_node` 置为 `0 rad`，所以 A/B 是相对于本次启动位置的角度，
+不是断电保持的机械绝对位置。
+
+## 2026-06-13 v6 Motor 8 实机初测默认参数
+
+Motor 8 在无危险机械负载的初步测试中，以下运行参数能够完成多圈位置控制，现固化为
+`motor8_position_controller_node` 的源码默认值：
+
+```text
+position_a_rad = 0.0 rad
+position_b_rad = 33.0 rad
+min_position_rad = -35.0 rad
+max_position_rad = 35.0 rad
+preset_speed_rad_s = 3.0 rad/s
+trim_speed_rad_s = 2.0 rad/s
+```
+
+换算后，位置 B 约为 `5.25` 圈，软限位单方向约为 `5.57` 圈。X 仍在 A/B 间切换，
+L3/R3 仍在软限位内微调。该结果属于初测值，后续装入真实机构后仍需根据机械限位、
+负载和方向继续调整。
+
+注意：当前 DM-S3519 反馈解码参数仍使用 `PMAX = 12.5 rad`。虽然实机初测确认
+`33 rad` 目标能够驱动电机多圈旋转，但超过 `+-12.5 rad` 后，必须继续观察
+`actual_q` 是否饱和，以及到位判断、手柄断连保持和急停恢复后的当前位置同步是否可靠。
+在这些保护行为完成实测前，不应直接把同样参数用于有碰撞风险的机构。

@@ -421,3 +421,26 @@ flowchart LR
 ```
 
 `/damiao_motor_status` 类型为 `std_msgs/msg/Float32MultiArray`，格式为 `[motor_id, state_code, feedback_fresh, is_enabled, feedback_age_sec, recovery_attempts, neutral_received]`。
+
+
+## 2026-06-12 Motor 8 POS_VEL 实验链路
+
+```text
+/joystick_data
+  -> /motor8_position_joystick_bridge_node
+  -> /motor8_position_input [toggle_event, trim_input, input_valid]
+  -> /motor8_position_controller_node
+  -> /damiao_control [8, 2, speed_rad_s, target_position_rad]
+  -> /motor_controller_node (damiao_node)
+  -> USB-CAN
+  -> Motor 8
+```
+
+状态链路：
+
+```text
+/damiao_motor_status -> /motor8_position_controller_node
+/motor8_position_controller_node -> /motor8_position_status
+```
+
+Motor 7 原有 `/arm_gripper_speed_cmd` 链路保持不变。
