@@ -140,3 +140,12 @@ ROS_LOCALHOST_ONLY=1
 ## 2026-06-07 电机断电恢复保护
 
 `damiao_node` 增加反馈 watchdog：`feedback_timeout_sec = 0.5 s`。反馈超时或 `isEnable = false` 后，电机进入 `RECOVERING`，非零命令被阻止，并每 `recovery_retry_sec = 2.0 s` 自动发送 `VEL mode + enable + 0 rad/s`。收到已使能反馈后仍需一次零速回中才进入 `READY`。状态通过 `/damiao_motor_status` 发布。该机制用于急停切断电机分电板但 USB-CAN 仍保持在线的情况。
+
+
+## 2026-06-15 人視角切換安全行為
+
+十字鍵現在只更新左搖桿的人視角方向，不直接輸出底盤速度。`joystick_bridge` 預設
+`view_change_requires_neutral=true`，左搖桿未回中時會拒絕視角切換，避免移動中方向瞬間跳變。
+`/joystick_data` 超過 `0.3 s` 未更新時仍發布 `/local_driving=[0,0,0]`，底盤既有多層
+watchdog 不變。Motor6 改由 `L3/R3` 控制，兩鍵同時按下或全部鬆開均輸出 `0 rad/s`。
+本功能已於 2026-06-15 完成實機驗證。

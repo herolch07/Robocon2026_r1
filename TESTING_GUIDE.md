@@ -312,3 +312,30 @@ Arduino SENT = [0,0,1,0,1,1]
 确认 selected ID=8，再按 A/B/SELECT，只应改变第 4/5/3 项。Y 始终只改变 KFS command。
 停止 joystick 数据超过 0.3 s 后，arm command 应恢复 `[0,1,0,1,1]`；任一串口 command
 来源停止超过 0.5 s 后，Arduino 聚合状态中该来源负责的 relay 应恢复安全值。
+
+
+## 2026-06-14 手動人視角與 Motor6 測試
+
+先架空底盤或在空曠區域低幅度測試。啟動後：
+
+```bash
+ros2 topic echo /view_orientation
+ros2 topic echo /local_driving
+ros2 topic echo /horizontal_speed_cmd
+```
+
+預期啟動 `/view_orientation=0`。依次測試：
+
+1. E-stop 朝人前方，十字鍵上，左搖桿向前，`/local_driving data[0]` 約為 `0`。
+2. 左搖桿回中，十字鍵左，狀態變為 `3`；左搖桿向前，方向約為 `+1.57 rad`。
+3. 左搖桿回中，十字鍵右，狀態變為 `1`；左搖桿向前，方向約為 `-1.57 rad`。
+4. 左搖桿回中，十字鍵下，狀態變為 `2`；左搖桿向前，方向約為 `+/-3.14 rad`。
+5. 左搖桿未回中時按十字鍵，`/view_orientation` 不應改變；鬆開十字鍵及左搖桿後重按。
+6. `L3` 預期 `/horizontal_speed_cmd=[-10.0]`。
+7. `R3` 預期 `/horizontal_speed_cmd=[10.0]`。
+8. 同時按 `L3+R3` 或全部鬆開，預期 `[0.0]`。
+
+四方向確認完成後，再落地低速確認左搖桿方向與人的視角一致。沒有 IMU，車身旋轉或操作人
+改變站位後必須手動重新設定十字鍵方向。
+
+實機結果（2026-06-15）：以上人視角四方向與 Motor6 `L3/R3` 測試全部通過。

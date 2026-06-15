@@ -700,3 +700,33 @@ stateDiagram-v2
 ```
 
 `RECOVERING` 和 `WAIT_NEUTRAL` 都只允许向硬件发送 `0 rad/s`。`/damiao_motor_status` 发布 Motor 1-7 的状态。
+
+
+## 2026-06-15 人視角控制架構更新
+
+目前底盤上層加入「操作人座標到車體座標」的離散轉換，仍保持節點解耦：
+
+```text
+/joystick_data
+  -> joystick_bridge
+       D-pad: 保存 E-stop 在人視角中的 0/90/180/270 度方向
+       left stick: operator frame -> body frame
+       right stick: rotation unchanged
+  -> /local_driving
+  -> local_navigation_node
+```
+
+`joystick_bridge` 另發布 `/view_orientation` (`std_msgs/msg/Int32`)：
+`0=前、1=右、2=後、3=左`。視角切換預設要求左搖桿回中，沒有 IMU 自動修正。
+
+Motor6 的輸入鏈改為：
+
+```text
+L3/R3 -> horizontal_joystick_bridge_node
+      -> /horizontal_speed_cmd [-10/0/+10 rad/s]
+      -> horizontal_controller_node
+      -> Motor6 VEL
+```
+
+底層運動學、CAN driver、Motor6 controller、topic 類型與 watchdog 均未改變。本功能已於
+2026-06-15 完成實機驗證。

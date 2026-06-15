@@ -470,3 +470,36 @@ X rising edge -> selected_position = (selected_position + 1) mod 3
 ```
 
 该状态由 Motor 7/8 controller 独立保存，共享 selector 只负责把 X 事件路由给当前电机。
+
+
+## 2026-06-15 人視角與 Motor6 現行節點圖
+
+本節取代前文把 D-pad 直接連到 Motor6 的現行描述。
+
+```mermaid
+graph LR
+    Joy[/joystick_data/]
+    BaseBridge[joystick_bridge]
+    View[/view_orientation<br/>Int32 0..3/]
+    Driving[/local_driving/]
+    Nav[local_navigation_node]
+    Base[Motor 1-4]
+    HorizontalBridge[horizontal_joystick_bridge_node<br/>L3/R3]
+    HorizontalCmd[/horizontal_speed_cmd/]
+    HorizontalCtrl[horizontal_controller_node]
+    Motor6[Motor 6]
+
+    Joy --> BaseBridge
+    BaseBridge --> View
+    BaseBridge --> Driving
+    Driving --> Nav --> Base
+    Joy --> HorizontalBridge --> HorizontalCmd --> HorizontalCtrl --> Motor6
+```
+
+```text
+D-pad -> joystick_bridge view selection only
+L3/R3 -> horizontal_joystick_bridge_node -> /horizontal_speed_cmd [-10/0/+10]
+```
+
+視角值為 `0=前、1=右、2=後、3=左`；左搖桿回中後才接受新值。本功能已於
+2026-06-15 完成實機測試。

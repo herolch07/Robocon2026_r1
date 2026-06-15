@@ -443,3 +443,26 @@ max_position_rad = 35.0 rad
 
 Motor 7 和 Motor 8 分别保存自己的 `selected_position`。START 切换当前控制电机时，
 不会改变未选中电机的预设索引或目标位置。L2/R2 仍可在 `-35..35 rad` 范围内微调。
+
+
+## 2026-06-14 v9 Motor6 改用 L3／R3
+
+本節取代 Motor6 使用十字鍵和三段 power level 的目前行為說明；舊內容保留作版本回溯。
+十字鍵已讓給底盤人視角選擇，Motor6 horizontal 改為：
+
+```text
+L3：Motor6 負方向，按住移動
+R3：Motor6 正方向，按住移動
+L3 + R3：停止
+全部鬆開：停止
+```
+
+`horizontal_joystick_bridge_node` 新參數：
+
+| 參數 | 預設值 | 單位 | 作用 |
+|---|---:|---|---|
+| `command_speed_rad_s` | `10.0` | rad/s | L3／R3 固定命令速度 |
+
+發布 topic 仍為 `/horizontal_speed_cmd`，下游 `horizontal_controller_node`、Motor6 VEL 模式、
+`max_speed_rad_s=20.0` 和 `timeout_sec=0.3 s` 均未改變。若 bridge 或 joystick topic 停止，
+下游超時後會輸出 Motor6 `0 rad/s`。

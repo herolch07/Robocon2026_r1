@@ -23,11 +23,21 @@ import rclpy
 from rclpy.node import Node
 from rclpy.executors import ExternalShutdownException
 from my_joystick_msgs.msg import Joystick
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, Int32
 import math
 import time
 
 AXIS_MAX = 512.0
+VIEW_FRONT = 0
+VIEW_RIGHT = 1
+VIEW_BACK = 2
+VIEW_LEFT = 3
+VIEW_NAMES = {
+    VIEW_FRONT: "FRONT",
+    VIEW_RIGHT: "RIGHT",
+    VIEW_BACK: "BACK",
+    VIEW_LEFT: "LEFT",
+}
 
 class JoystickBridge(Node):
     """
@@ -52,10 +62,17 @@ class JoystickBridge(Node):
         self.declare_parameter('watchdog_hz', 20.0)
         self.declare_parameter('translation_linear_weight', 0.1)
         self.declare_parameter('rotation_linear_weight', 0.1)
+        self.declare_parameter('default_view_orientation', VIEW_FRONT)
+        self.declare_parameter('view_change_requires_neutral', True)
 
         self.last_joystick_time = 0.0
         self.joystick_seen = False
         self.timeout_stop_sent = False
+        configured_view = int(self.get_parameter('default_view_orientation').value)
+        self.view_orientation = (
+            configured_view if configured_view in VIEW_NAMES else VIEW_FRONT
+        )
+        self.last_dpad_direction = None
         
         # 添加参数回调以支持运行时动态调整
         self.add_on_set_parameters_callback(self.parameter_callback)
@@ -74,6 +91,7 @@ class JoystickBridge(Node):
             '/local_driving',
             10
         )
+        self.view_pub = self.create_publisher(Int32, '/view_orientation', 10)
 
         watchdog_hz = max(float(self.get_parameter('watchdog_hz').value), 1.0)
         self.watchdog_timer = self.create_timer(1.0 / watchdog_hz, self.watchdog_callback)
@@ -89,6 +107,11 @@ class JoystickBridge(Node):
             f"a={self.get_parameter('rotation_linear_weight').value}"
         )
         self.get_logger().info("START/SELECT chassis speed switching disabled")
+        self.get_logger().info(
+            "D-pad selects operator view: up/front, right/right, "
+            "down/back, left/left"
+        )
+        self.publish_view_orientation()
         self.get_logger().info(f"Max rotation: {self.get_parameter('max_rotation').value} rad/s")
         self.get_logger().info(f"Deadzone: {self.get_parameter('deadzone').value}")
         self.get_logger().info(f"Input timeout: {self.get_parameter('input_timeout_sec').value}s")
@@ -118,6 +141,8 @@ class JoystickBridge(Node):
                 'input_timeout_sec',
                 'translation_linear_weight',
                 'rotation_linear_weight',
+                'default_view_orientation',
+                'view_change_requires_neutral',
             ]:
                 self.get_logger().info(f"Parameter updated: {param.name} = {param.value}")
 
@@ -134,10 +159,10 @@ class JoystickBridge(Node):
         self.joystick_seen = True
         self.timeout_stop_sent = False
 
-        # 从手柄读取数据
-        lx = msg.lx  # 左摇杆 X
-        ly = msg.ly  # 左摇杆 Y
-        rx = msg.rx  # 右摇杆 X
+        # 左搖桿先按人的視角解讀；十字鍵記錄 E-stop 在人視角中的方向。
+        lx = msg.lx
+        ly = msg.ly
+        rx = msg.rx
         
         # 实时获取参数（支持运行时修改）
         max_speed_cm = self.get_parameter('max_speed_cm').value
@@ -155,8 +180,30 @@ class JoystickBridge(Node):
             ly = 0
         if abs(rx) < deadzone:
             rx = 0
+
+        requested_view = self.orientation_from_dpad(
+            msg.dx, msg.dy, self.view_orientation, deadzone
+        )
+        dpad_direction = self.active_dpad_direction(msg.dx, msg.dy, deadzone)
+        dpad_edge = dpad_direction is not None and dpad_direction != self.last_dpad_direction
+        requires_neutral = bool(
+            self.get_parameter('view_change_requires_neutral').value
+        )
+        if dpad_edge and requested_view != self.view_orientation:
+            if not requires_neutral or (lx == 0 and ly == 0):
+                self.view_orientation = requested_view
+                self.publish_view_orientation()
+                self.get_logger().info(
+                    f"Operator view set: E-stop is {VIEW_NAMES[self.view_orientation]}"
+                )
+            else:
+                self.get_logger().warn(
+                    "View change ignored: release the left stick first",
+                    throttle_duration_sec=1.0,
+                )
+        self.last_dpad_direction = dpad_direction
         
-        # 转换为底盘指令
+        # 轉換為底盤指令
         if lx == 0 and ly == 0:
             # 摇杆回中：只考虑旋转
             direction = 0.0
@@ -164,7 +211,10 @@ class JoystickBridge(Node):
         else:
             # 计算方向角 (弧度)
             # 注意：Y轴取反是因为手柄坐标系与机器人坐标系可能不同
-            direction = math.atan2(float(lx), -float(ly))
+            operator_direction = math.atan2(float(lx), -float(ly))
+            direction = self.operator_to_body_direction(
+                operator_direction, self.view_orientation
+            )
             
             # 计算速度大小并限幅到 0-100%。斜向推杆时 lx/ly 同时接近满量程，
             # 如果不限幅，sqrt(lx^2 + ly^2) 会超过 AXIS_MAX。
@@ -199,6 +249,39 @@ class JoystickBridge(Node):
                 f"Nav: dir={math.degrees(direction):.1f}°, "
                 f"speed={speed_cm:.1f}cm/s, rot={rotation:.2f}rad/s"
             )
+
+    @staticmethod
+    def active_dpad_direction(dx, dy, deadzone):
+        """Return one exclusive D-pad direction, ignoring diagonal input."""
+        horizontal = 0 if abs(int(dx)) < deadzone else (1 if dx > 0 else -1)
+        vertical = 0 if abs(int(dy)) < deadzone else (1 if dy > 0 else -1)
+        if bool(horizontal) == bool(vertical):
+            return None
+        if vertical < 0:
+            return VIEW_FRONT
+        if horizontal > 0:
+            return VIEW_RIGHT
+        if vertical > 0:
+            return VIEW_BACK
+        return VIEW_LEFT
+
+    @classmethod
+    def orientation_from_dpad(cls, dx, dy, current, deadzone):
+        """Map D-pad position to the absolute E-stop orientation."""
+        requested = cls.active_dpad_direction(dx, dy, deadzone)
+        return int(current) if requested is None else requested
+
+    @staticmethod
+    def operator_to_body_direction(operator_direction, view_orientation):
+        """Convert an operator-frame direction into the robot body frame."""
+        body_direction = float(operator_direction) - int(view_orientation) * math.pi / 2.0
+        return math.atan2(math.sin(body_direction), math.cos(body_direction))
+
+    def publish_view_orientation(self):
+        """Publish 0=front, 1=right, 2=back, 3=left for monitoring."""
+        msg = Int32()
+        msg.data = int(self.view_orientation)
+        self.view_pub.publish(msg)
 
     def watchdog_callback(self):
         """

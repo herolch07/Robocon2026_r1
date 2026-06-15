@@ -146,3 +146,32 @@ This prevents R1 from discovering R2 nodes such as `/damiao_motor_controller`, `
 ## Damiao E-stop Recovery
 
 The motor driver now detects stale/disabled Motor 1-7 feedback, retries `VEL + enable + zero` every 2 seconds, and blocks non-zero commands until enabled feedback is confirmed and the controller returns to neutral. Monitor `/damiao_motor_status`; state codes are `0=RECOVERING`, `1=WAIT_NEUTRAL`, `2=READY`, `3=DISABLED`.
+
+
+## 2026-06-15 Current Operator-Frame Control
+
+This section supersedes earlier current-operation text that assigns the D-pad to
+Motor 6 or marks L3/R3 unused. Historical sections remain for traceability.
+
+```text
+D-pad up:    E-stop/front of robot faces operator-frame front, view=0
+D-pad right: E-stop/front of robot faces operator-frame right, view=1
+D-pad down:  E-stop/front of robot faces operator-frame back, view=2
+D-pad left:  E-stop/front of robot faces operator-frame left, view=3
+```
+
+The D-pad only changes how left-stick translation is converted into the robot
+body frame; it does not rotate the chassis. The left stick must be neutral before
+a view change is accepted. Right-stick rotation and all chassis speed and
+acceleration limits are unchanged.
+
+Motor 6 horizontal control is now:
+
+```text
+L3: -10 rad/s
+R3: +10 rad/s
+L3 + R3 or neither: 0 rad/s
+```
+
+Monitor the selected view with `ros2 topic echo /view_orientation`. This feature
+passed real-machine testing on 2026-06-15 and is the configuration to keep.

@@ -568,3 +568,36 @@ ros2 topic echo /damiao_motor_status
 ```
 
 状态码 `0=RECOVERING`、`1=WAIT_NEUTRAL`、`2=READY`、`3=DISABLED`。Motor 1-7 全部到 `2` 后再小幅操作；正常情况不需要重启 `r1_start_base_1_0.sh`。
+
+
+## 2026-06-15 現行人視角底盤控制
+
+此節為目前正式配置，取代文件前面所有「十字鍵控制 Motor6」或「L3／R3 未使用」的現行
+描述；舊內容只保留作版本回溯。
+
+```text
+十字鍵上：E-stop／車頭在人視角前方，view=0
+十字鍵右：E-stop／車頭在人視角右方，view=1
+十字鍵下：E-stop／車頭在人視角後方，view=2
+十字鍵左：E-stop／車頭在人視角左方，view=3
+```
+
+十字鍵只設定左搖桿的平移座標，不會命令底盤旋轉。左搖桿必須回中才接受視角切換；右搖桿
+旋轉、`150 cm/s` 平移上限、`1.2 rad/s` 旋轉上限、`40 rad/s` 輪速上限及
+`25 rad/s²` 四輪統一加速度限幅均保持不變。
+
+Motor6 horizontal 已搬到：
+
+```text
+L3：-10 rad/s
+R3：+10 rad/s
+L3 + R3 或全部鬆開：0 rad/s
+```
+
+監控目前視角：
+
+```bash
+ros2 topic echo /view_orientation
+```
+
+本功能已於 2026-06-15 完成實機測試並確認繼續採用。

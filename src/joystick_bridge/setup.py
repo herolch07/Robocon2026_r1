@@ -15,6 +15,7 @@ setup(
         (os.path.join('lib', package_name), glob('scripts/*')),
     ],
     install_requires=['setuptools'],
+    extras_require={'test': ['pytest']},
     zip_safe=True,
     maintainer='EdUHK Robocon Team',
     maintainer_email='robotics@example.com',
