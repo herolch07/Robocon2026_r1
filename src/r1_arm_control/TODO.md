@@ -107,3 +107,11 @@
 - [x] 新增正向、負向、衝突停止單元測試
 - [x] 實機確認 L3／R3 對應的 Motor6 正負方向
 - [x] 實機確認固定 `10 rad/s` 操作速度合適
+
+## v10 Motor6 P1／P2 背鍵替代操作
+
+- [x] 使用 `evtest` 確認 P1／P2 目前沒有獨立 evdev event
+- [x] 將 8BitDo P1 remap 為 R3
+- [x] 將 8BitDo P2 remap 為 L3
+- [x] 確認 source code 不需要新增 `p1/p2` 欄位
+- [x] 更新 Motor6 horizontal 操作文檔

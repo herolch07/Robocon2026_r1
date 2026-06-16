@@ -62,3 +62,11 @@
 - [x] 新增白名单与误匹配单元测试
 - [ ] 新手柄需要使用 L2/R2 时，改为动态读取 `AbsInfo` 轴范围
 - [ ] 分别实机确认两只手柄启动 bash 后可自动连接并发布 `/joystick_data`
+
+## 2026-06-16 8BitDo P1／P2 背鍵確認
+
+- [x] 使用 `evtest` 確認 A/B/X/Y 有事件
+- [x] 確認 P1／P2 目前沒有獨立 evdev event
+- [x] 決定不修改 `Joystick.msg` 或 `joystick_node.py`
+- [x] 記錄目前手柄 remap：`P1 = R3`、`P2 = L3`
+- [ ] 若未來切換模式後 P1／P2 有獨立 `EV_KEY` code，再新增 `p1/p2` 欄位

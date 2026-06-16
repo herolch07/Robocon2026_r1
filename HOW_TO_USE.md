@@ -397,3 +397,26 @@ ros2 topic echo /view_orientation
 所選 arm 氣動，`SELECT/-` 控制 Motor8 inclination，`Y` 控制 KFS。
 
 實機結果（2026-06-15）：四個人視角方向及 Motor6 `L3/R3` 控制均測試成功，正式保留此配置。
+
+## 2026-06-16 8BitDo P1／P2 背鍵配置
+
+P1／P2 目前不作為獨立 ROS 按鍵使用。`evtest` 實測 A/B/X/Y 有事件，但 P1／P2
+沒有獨立事件，因此不修改 `Joystick.msg` 或 `joystick_node.py`。
+
+目前在 8BitDo 軟體中使用手柄內部 remap：
+
+```text
+P1 = R3
+P2 = L3
+```
+
+所以實際操作為：
+
+```text
+按住 P1：等同 R3，Motor6 horizontal 正方向，/horizontal_speed_cmd = [10.0]
+按住 P2：等同 L3，Motor6 horizontal 負方向，/horizontal_speed_cmd = [-10.0]
+P1 + P2 或全部鬆開：等同 L3 + R3 或鬆開，/horizontal_speed_cmd = [0.0]
+```
+
+這只是手柄硬體層的按鍵替代，不新增 ROS topic、message 欄位或 node。原本 L3／R3
+仍保留同樣功能。

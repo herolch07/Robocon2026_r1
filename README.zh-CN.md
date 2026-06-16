@@ -178,4 +178,26 @@ L3 + R3 或全部鬆開：0 rad/s
 ros2 topic echo /view_orientation
 ```
 
+## 2026-06-16 8BitDo P1／P2 背鍵配置
+
+P1／P2 目前不是 ROS 內的獨立按鍵。`evtest` 實測 A/B/X/Y 有事件，但 P1／P2 沒有獨立
+事件，因此目前不修改 `Joystick.msg`、`joystick_node.py` 或任何 bridge node。
+
+目前使用 8BitDo 軟體 remap：
+
+```text
+P1 = R3
+P2 = L3
+```
+
+實際效果：
+
+```text
+P1 -> R3 -> Motor6 +10 rad/s
+P2 -> L3 -> Motor6 -10 rad/s
+P1 + P2 或全部鬆開 -> Motor6 0 rad/s
+```
+
+這只改變手柄物理操作位置，不改變 ROS topic、message、timeout 或控制計算。
+
 本功能已於 2026-06-15 完成實機測試並確認繼續採用。

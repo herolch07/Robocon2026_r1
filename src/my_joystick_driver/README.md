@@ -217,3 +217,25 @@ ros2 run my_joystick_driver joystick_node
 会自动连接当前插入的任一手柄。原有 `device_name_filter` 继续有效，可用于临时匹配其他 evdev 手柄名称。ABXY、摇杆和方向键映射本次不变。
 
 新 3-mode Xbox 手柄的 L2/R2 原始范围为 `0..1023`，旧 2.4G 手柄为 `0..255`。本次按要求只修正自动检测；如果使用新手柄扳机控制机构，仍需后续将轴范围改为从 evdev `AbsInfo` 动态读取。
+
+## 2026-06-16 8BitDo P1／P2 背鍵狀態
+
+`evtest` 實測：同一個手柄 event 裝置中 A/B/X/Y 有輸出，但 P1／P2 沒有獨立輸出。因此目前
+driver 不新增 `p1`／`p2` 映射，`my_joystick_msgs/msg/Joystick.msg` 也不新增欄位。
+
+目前採用 8BitDo 軟體內部 remap：
+
+```text
+P1 = R3
+P2 = L3
+```
+
+driver 仍按既有 mapping 發布：
+
+```text
+P1 -> r3: true
+P2 -> l3: true
+```
+
+這是手柄韌體層替代按鍵，不是 ROS 獨立按鍵。若未來某個連線模式下 P1／P2 能產生獨立
+`EV_KEY` code，再擴充 `button_mapping` 與 `Joystick.msg`。

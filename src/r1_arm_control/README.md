@@ -466,3 +466,25 @@ L3 + R3：停止
 發布 topic 仍為 `/horizontal_speed_cmd`，下游 `horizontal_controller_node`、Motor6 VEL 模式、
 `max_speed_rad_s=20.0` 和 `timeout_sec=0.3 s` 均未改變。若 bridge 或 joystick topic 停止，
 下游超時後會輸出 Motor6 `0 rad/s`。
+
+## 2026-06-16 v10 Motor6 P1／P2 背鍵替代操作
+
+P1／P2 背鍵目前不進入 ROS 作為獨立按鍵；`evtest` 實測 P1／P2 沒有獨立事件。實機操作
+採用 8BitDo 軟體 remap：
+
+```text
+P1 = R3
+P2 = L3
+```
+
+因此 `horizontal_joystick_bridge_node` 不需要改動，仍只讀取 `msg.l3` 和 `msg.r3`：
+
+```text
+P1 -> R3 -> /horizontal_speed_cmd [10.0]
+P2 -> L3 -> /horizontal_speed_cmd [-10.0]
+P1 + P2 或全部鬆開 -> /horizontal_speed_cmd [0.0]
+```
+
+此配置只影響操作者手感，不改變 topic、message、timeout、Motor6 controller 或 Damiao
+控制鏈路。若未來某個手柄模式能讓 P1／P2 產生獨立 evdev code，才需要擴充
+`my_joystick_msgs/msg/Joystick.msg` 與 `my_joystick_driver/joystick_node.py`。

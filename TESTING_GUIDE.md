@@ -339,3 +339,28 @@ ros2 topic echo /horizontal_speed_cmd
 改變站位後必須手動重新設定十字鍵方向。
 
 實機結果（2026-06-15）：以上人視角四方向與 Motor6 `L3/R3` 測試全部通過。
+
+## 2026-06-16 P1／P2 背鍵 remap 測試
+
+P1／P2 由 8BitDo 軟體設定為：
+
+```text
+P1 = R3
+P2 = L3
+```
+
+啟動後監控：
+
+```bash
+ros2 topic echo /joystick_data
+ros2 topic echo /horizontal_speed_cmd
+```
+
+預期結果：
+
+1. 按住 `P1`，`/joystick_data` 應顯示 `r3: true`，`/horizontal_speed_cmd` 應為 `[10.0]`。
+2. 按住 `P2`，`/joystick_data` 應顯示 `l3: true`，`/horizontal_speed_cmd` 應為 `[-10.0]`。
+3. 同時按 `P1+P2` 或全部鬆開，`/horizontal_speed_cmd` 應為 `[0.0]`。
+
+注意：P1／P2 目前沒有獨立 evdev event，不應期待 `/joystick_data` 出現 `p1` 或 `p2`
+欄位。這次測試確認的是背鍵作為 L3／R3 替代鍵可用。

@@ -175,3 +175,24 @@ L3 + R3 or neither: 0 rad/s
 
 Monitor the selected view with `ros2 topic echo /view_orientation`. This feature
 passed real-machine testing on 2026-06-15 and is the configuration to keep.
+
+## 2026-06-16 8BitDo P1/P2 Back Paddle Mapping
+
+P1/P2 are not independent ROS buttons in the current setup. `evtest` showed that
+A/B/X/Y generate events, while P1/P2 do not generate separate events. The current
+controller-side remap is:
+
+```text
+P1 = R3
+P2 = L3
+```
+
+This means P1/P2 are alternate physical inputs for Motor 6 horizontal control:
+
+```text
+P1 -> R3 -> +10 rad/s
+P2 -> L3 -> -10 rad/s
+P1 + P2 or released -> 0 rad/s
+```
+
+No ROS message, topic, node, timeout, or controller logic changed for this mapping.
