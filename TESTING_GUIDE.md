@@ -468,3 +468,62 @@ ros2 topic echo /robot_power_status
 5. 正式模式 `dry_run=false` 下，預期 `/robot_power_status` 先顯示 `SHUTDOWN combo_held`，再顯示 `SHUTDOWN_COMMAND_STARTED sudo -n /usr/bin/systemctl poweroff`，然後 Pi 關機。
 
 目前 sudoers 已要求允許 `robotics` 免密執行 `/usr/bin/systemctl poweroff`。node 不應先 kill 自己所在的 tmux session；poweroff 命令啟動後讓 systemd 完成關機。
+
+
+## 2026-06-19 KFS gripper 人視角測試覆蓋
+
+本節取代上一段以 E-stop 為基準的預期值。現在 `/view_orientation` 表示 KFS gripper 在人視角中的方向。
+
+啟動後預期 `/view_orientation=2`，代表 KFS gripper 在人視角後方／靠近操作人。依次測試：
+
+1. KFS gripper 朝向操作人，保持預設或按十字鍵下，左搖桿向前，`/local_driving data[0]` 約為 `+1.57 rad`。
+2. 左搖桿回中，十字鍵左，狀態變為 `3`；左搖桿向前，方向約為 `0 rad`。
+3. 左搖桿回中，十字鍵上，狀態變為 `0`；左搖桿向前，方向約為 `-1.57 rad`。
+4. 左搖桿回中，十字鍵右，狀態變為 `1`；左搖桿向前，方向約為 `+/-3.14 rad`。
+5. 左搖桿未回中時按十字鍵，`/view_orientation` 不應改變；鬆開十字鍵及左搖桿後重按。
+
+四方向確認完成後，再落地低速確認左搖桿方向與人的視角一致。沒有 IMU，車身旋轉或操作人改變站位後仍必須手動重新設定十字鍵方向。
+
+
+## 2026-06-19 KFS gripper 車頭標測試覆蓋
+
+本節取代同日 KFS `+1` 偏移方案的測試預期。現在 `/view_orientation` 表示 KFS gripper／車頭在人視角中的方向。
+
+啟動後預期 `/view_orientation=2`，代表 KFS gripper／車頭在你視角後方／靠近你。依次測試：
+
+1. KFS gripper 朝向操作人，保持預設或按十字鍵下，左搖桿向前，`/local_driving data[0]` 約為 `+/-3.14 rad`。
+2. 左搖桿回中，十字鍵上，狀態變為 `0`；左搖桿向前，方向約為 `0 rad`。
+3. 左搖桿回中，十字鍵右，狀態變為 `1`；左搖桿向前，方向約為 `-1.57 rad`。
+4. 左搖桿回中，十字鍵左，狀態變為 `3`；左搖桿向前，方向約為 `+1.57 rad`。
+5. 左搖桿未回中時按十字鍵，`/view_orientation` 不應改變；鬆開十字鍵及左搖桿後重按。
+
+落地時用低速確認：無論 KFS 在你眼中的哪個方向，按對應十字鍵後，左搖桿應該按你的視角前後左右移動。
+
+
+## 2026-06-19 KFS gripper 開機預設測試覆蓋
+
+本節取代同日 v2.2 中啟動預設 `view=2` 的測試預期。現在啟動後預期：
+
+```text
+/view_orientation = 0
+```
+
+測試順序：
+
+1. 不按 D-pad，左搖桿向前，`/local_driving data[0]` 約為 `0 rad`。
+2. 左搖桿回中，按十字鍵右，狀態變為 `1`；左搖桿向前，方向約為 `-1.57 rad`。
+3. 左搖桿回中，按十字鍵下，狀態變為 `2`；左搖桿向前，方向約為 `+/-3.14 rad`。
+4. 左搖桿回中，按十字鍵左，狀態變為 `3`；左搖桿向前，方向約為 `+1.57 rad`。
+
+
+## 2026-06-19 KFS 車頭標 90 度校正測試
+
+本節取代 v2.3 的測試預期。啟動後預期 `/view_orientation=0`。
+
+KFS gripper 在最前方時測試：
+
+1. 不按 D-pad 或按十字鍵上，左搖桿向前，機器應在你眼中向前；`/local_driving data[0]` 約為 `+1.57 rad`。
+2. 左搖桿回中，按十字鍵右，狀態變為 `1`；左搖桿向前，方向約為 `0 rad`。
+3. 左搖桿回中，按十字鍵下，狀態變為 `2`；左搖桿向前，方向約為 `-1.57 rad`。
+4. 左搖桿回中，按十字鍵左，狀態變為 `3`；左搖桿向前，方向約為 `+/-3.14 rad`。
+5. 左搖桿未回中時按十字鍵，`/view_orientation` 不應改變。

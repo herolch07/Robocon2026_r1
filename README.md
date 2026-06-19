@@ -223,3 +223,51 @@ Current seven-relay Arduino order:
 `SELECT/-` controls the inclination of the arm currently selected by `START/+`: Motor7 uses relay7 / Motor7 inclination, and Motor8 uses relay4 / Motor8 inclination.
 
 Controller-gated autostart is available: `systemd/r1-control-autostart.service` starts `scripts/wait_and_start_robot.sh` at boot, and the watcher starts `r1_start_base_1_0.sh` only after an 8BitDo / Xbox controller is active. Default `STOP_ON_CONTROLLER_LOST=0` means a controller dropout does not kill the ROS tmux session; node watchdogs remain responsible for safe output.
+
+
+## 2026-06-19 Current KFS-Gripper Operator-Frame Control
+
+This section supersedes the 2026-06-15 E-stop-based D-pad description. The D-pad now selects where the KFS gripper is in the operator frame:
+
+```text
+D-pad up:    KFS gripper faces operator-frame front, view=0
+D-pad right: KFS gripper faces operator-frame right, view=1
+D-pad down:  KFS gripper faces operator-frame back / toward operator, view=2
+D-pad left:  KFS gripper faces operator-frame left, view=3
+```
+
+The startup default is `view=2` because the current match setup starts with the KFS gripper facing the operator. The current physical relation is: when E-stop/body-front points operator-frame front, the KFS gripper points operator-frame left. Internally, `joystick_bridge` converts with `E-stop view = (KFS view + 1) % 4` before publishing `/local_driving`.
+
+Left-stick neutral is still required before changing view. Right-stick rotation, chassis speed limits, acceleration limits, and watchdog behavior are unchanged.
+
+
+## 2026-06-19 Current KFS-Gripper Front-Marker Control
+
+This section supersedes the same-day `KFS view + 1` conversion note. The KFS gripper is now treated as the visible body-front marker:
+
+```text
+D-pad up:    KFS gripper / body front faces operator-frame front, view=0
+D-pad right: KFS gripper / body front faces operator-frame right, view=1
+D-pad down:  KFS gripper / body front faces operator-frame back / toward operator, view=2
+D-pad left:  KFS gripper / body front faces operator-frame left, view=3
+```
+
+`joystick_bridge` now uses `body_front_view = KFS view` with no additional offset. Startup default remains `view=2` because the current match setup starts with the KFS gripper facing the operator. Left-stick neutral is still required before changing view; chassis limits and watchdog behavior are unchanged.
+
+
+## 2026-06-19 KFS Front-Marker Startup Default
+
+This section supersedes the same-day note that used startup `view=2`. Startup default is now `view=0`, equivalent to D-pad up, meaning the KFS gripper / body front is assumed to face operator-frame front when `joystick_bridge` starts.
+
+The KFS gripper is still the visible body-front marker, so `body_front_view = KFS view` remains unchanged. Chassis limits, right-stick rotation, and watchdog behavior are unchanged.
+
+
+## 2026-06-19 KFS Front-Marker 90-Degree Calibration
+
+This section supersedes the same-day front-marker formula. Real-machine testing showed D-pad left was previously required to make left-stick-forward move forward when the KFS gripper was visually at the front. The active conversion is now:
+
+```text
+body_front_view = (KFS view - 1) % 4
+```
+
+D-pad semantics and startup default are unchanged: startup `view=0` means KFS gripper / visual front is assumed to face operator-frame front. Chassis limits and watchdog behavior are unchanged.

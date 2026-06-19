@@ -248,3 +248,57 @@ Current relay order:
 ```text
 [KFS, M7 height, M7 gripper, M8 inclination, M8 height, M8 gripper, M7 inclination]
 ```
+
+
+## 2026-06-19 現行 KFS gripper 人視角底盤控制
+
+此節取代 2026-06-15 的 E-stop 基準說明。現在十字鍵表示 **KFS gripper 在操作人視角中的方向**：
+
+```text
+十字鍵上：KFS gripper 在人視角前方，view=0
+十字鍵右：KFS gripper 在人視角右方，view=1
+十字鍵下：KFS gripper 在人視角後方／靠近人，view=2
+十字鍵左：KFS gripper 在人視角左方，view=3
+```
+
+開機預設 `view=2`，因為目前假設 KFS gripper 先朝向操作人。實物關係為：E-stop 在北方時，KFS gripper 在西方；程式內部用 `(KFS view + 1) % 4` 換算出 E-stop／車體前方。
+
+測試重點：如果你看到 KFS gripper 在左邊，按十字鍵左，之後左搖桿向前，底盤應該在你眼中向前平移。
+
+
+## 2026-06-19 現行 KFS gripper 車頭標控制
+
+此節取代同日 KFS `+1` 偏移方案。現在 KFS gripper 直接視為車頭／機器前方：
+
+```text
+十字鍵上：KFS gripper／車頭 在人視角前方，view=0
+十字鍵右：KFS gripper／車頭 在人視角右方，view=1
+十字鍵下：KFS gripper／車頭 在人視角後方／靠近人，view=2
+十字鍵左：KFS gripper／車頭 在人視角左方，view=3
+```
+
+開機預設 `view=2`。測試重點：如果你看到 KFS gripper 在前方，按十字鍵上，之後左搖桿向前，底盤應該在你眼中向前平移。
+
+
+## 2026-06-19 KFS gripper 開機預設在前方
+
+開機預設現在是：
+
+```text
+view=0
+等同十字鍵上
+KFS gripper／車頭 在人視角前方
+```
+
+若車身方向與這個假設不一致，左搖桿回中後按對應十字鍵重新同步。
+
+
+## 2026-06-19 KFS 車頭標 90 度校正
+
+目前有效公式：
+
+```text
+body_front_view = (KFS view - 1) % 4
+```
+
+開機仍是 `view=0`，等同十字鍵上，表示 KFS gripper／視覺車頭在你前方。校正後，KFS 在前時左搖桿向前應該在你眼中向前走。

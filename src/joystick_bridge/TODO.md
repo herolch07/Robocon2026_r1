@@ -108,3 +108,46 @@
 - [x] 實機確認 E-stop 在左時，左搖桿向前仍向人視角前方平移
 - [x] 實機確認四個方向及斜向移動
 - [ ] 評估日後加入 IMU 自動更新視角
+
+
+## v2.1 KFS gripper 人視角基準
+
+- [x] 十字鍵語義由 E-stop 方向改為 KFS gripper 在人視角中的方向
+- [x] 預設 `default_view_orientation=2`，對應 KFS gripper 開機朝向操作人
+- [x] 按實物關係實作 `E-stop view = (KFS view + 1) % 4`
+- [x] 更新方向轉換單元測試
+- [x] 保持右搖桿旋轉、速度曲線、底層限幅與 watchdog 不變
+- [ ] 實機確認 KFS 在左時，十字鍵左 + 左搖桿向前會向操作人前方移動
+- [ ] 實機確認開機預設 view=2 時，KFS 朝向操作人場景下左搖桿方向正確
+
+
+## v2.2 KFS gripper 車頭標
+
+- [x] 改為將 KFS gripper 直接視為車體前方／車頭標
+- [x] 移除 v2.1 的 `+1` 機械偏移換算
+- [x] 保持 `default_view_orientation=2`，對應 KFS gripper 開機朝向操作人
+- [x] 更新方向轉換單元測試
+- [x] 保持右搖桿旋轉、速度曲線、底層限幅與 watchdog 不變
+- [ ] 實機確認 KFS 朝向操作人時，預設 view=2 + 左搖桿向前符合操作人視角
+- [ ] 實機確認 KFS 在前／右／後／左四個方向的左搖桿換算
+
+
+## v2.3 KFS gripper 開機預設在前方
+
+- [x] 將 `default_view_orientation` 預設由 `2` 改為 `0`
+- [x] 啟動預設等同 D-pad 上，代表 KFS gripper／車頭在人視角前方
+- [x] 保持 KFS gripper 作為車頭標，內部仍為 `body_front_view = KFS view`
+- [x] 保持右搖桿旋轉、速度曲線、底層限幅與 watchdog 不變
+- [ ] 實機確認開機後 `/view_orientation=0`
+- [ ] 實機確認不按 D-pad 時左搖桿向前符合 KFS 在前方的視角
+
+
+## v2.4 KFS front-marker 90-degree calibration
+
+- [x] 根據實機結果確認 v2.3 方向差 90 度
+- [x] 將內部換算改為 `body_front_view = (KFS view - 1) % 4`
+- [x] 保持 D-pad 語義不變：上=KFS 在前、右=KFS 在右、下=KFS 在後、左=KFS 在左
+- [x] 保持開機預設 `default_view_orientation=0`
+- [x] 更新方向轉換單元測試
+- [ ] 實機確認 KFS 在前時，不按 D-pad 或按 D-pad 上，左搖桿向前會向操作人前方移動
+- [ ] 實機確認四方向 D-pad 與左搖桿方向一致

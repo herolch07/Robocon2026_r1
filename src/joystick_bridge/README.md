@@ -458,3 +458,66 @@ rotation_linear_weight = 0.1
 `/joystick_data` 超過 `input_timeout_sec=0.3 s` 未更新時仍發布
 `/local_driving=[0,0,0]`。視角狀態不會自動推算，重啟節點後回到預設 `0`；每次車身轉過
 90 度或操作人改變站位後，必須手動按十字鍵同步。
+
+
+## 2026-06-19 v2.1 KFS gripper 作為人視角基準
+
+本節取代 v2.0 中「十字鍵指定 E-stop／車頭方向」的現行操作說明；v2.0 保留作歷史記錄。
+
+十字鍵現在指定 **KFS gripper 在操作人視角中的絕對方向**，不是指定 E-stop 方向：
+
+```text
+十字鍵上：KFS gripper 在人的前方，view=0
+十字鍵右：KFS gripper 在人的右方，view=1
+十字鍵下：KFS gripper 在人的後方／靠近人，view=2
+十字鍵左：KFS gripper 在人的左方，view=3
+```
+
+目前機械幾何假設：當 E-stop／車體前方在人視角前方時，KFS gripper 在人視角左方。
+因此 `joystick_bridge` 內部使用 `E-stop view = (KFS view + 1) % 4` 轉換後，再把左搖桿的人視角方向轉成車體座標。
+
+預設 `default_view_orientation=2`，對應開機時 KFS gripper 朝向操作人。`/view_orientation` 發布的也是 KFS gripper 方向，仍為 `0=前、1=右、2=後、3=左`。
+
+安全與超時策略不變：左搖桿未回中時拒絕切換視角；`/joystick_data` 超過 `input_timeout_sec=0.3 s` 未更新時發布 `/local_driving=[0,0,0]`。
+
+
+## 2026-06-19 v2.2 KFS gripper 作為車頭標
+
+本節取代 v2.1 中 `E-stop view = (KFS view + 1) % 4` 的現行假設；v2.1 保留作回溯記錄。
+
+目前操作基準改為：**KFS gripper 就是操作者用來判斷車頭／機器前方的視覺標記**。因此十字鍵指定的是 KFS gripper，也同時等同於車體前方在人視角中的方向：
+
+```text
+十字鍵上：KFS gripper／車頭 在人的前方，view=0
+十字鍵右：KFS gripper／車頭 在人的右方，view=1
+十字鍵下：KFS gripper／車頭 在人的後方／靠近人，view=2
+十字鍵左：KFS gripper／車頭 在人的左方，view=3
+```
+
+內部轉換簡化為 `body_front_view = KFS view`，不再額外加 90 度或 180 度偏移。預設仍為 `default_view_orientation=2`，對應開機時 KFS gripper 朝向操作人。
+
+安全與超時策略不變：左搖桿未回中時拒絕切換視角；`/joystick_data` 超過 `input_timeout_sec=0.3 s` 未更新時發布 `/local_driving=[0,0,0]`。
+
+
+## 2026-06-19 v2.3 KFS gripper 開機預設在前方
+
+本節取代 v2.2 中 `default_view_orientation=2` 的現行預設說明；v2.2 保留作回溯記錄。
+
+目前開機預設改為 `default_view_orientation=0`，等同於 D-pad 上。也就是節點啟動後假設 KFS gripper／車頭在人視角前方。`/view_orientation` 啟動後應發布 `0`。
+
+方向語義不變：KFS gripper 仍直接視為車體前方／車頭標，內部仍使用 `body_front_view = KFS view`。左搖桿未回中時仍拒絕切換視角；`/joystick_data` 超過 `input_timeout_sec=0.3 s` 未更新時仍發布 `/local_driving=[0,0,0]`。
+
+
+## 2026-06-19 v2.4 KFS front-marker 90-degree calibration
+
+This section supersedes v2.3 for the active conversion formula. Real-machine testing showed that when the KFS gripper is visually at the front, pressing D-pad left made left-stick-forward move forward in the operator view, while D-pad up made the chassis move left. That means the chassis body-frame forward axis is offset by 90 degrees from the visible KFS marker.
+
+The active conversion is therefore:
+
+```text
+body_front_view = (KFS view - 1) % 4
+```
+
+The D-pad semantic remains unchanged: D-pad up still means KFS gripper is visually in front of the operator. Startup default remains `default_view_orientation=0`, equivalent to D-pad up. With this calibration, startup view `0` should make left-stick-forward move forward in the operator view when the KFS gripper is visually at the front.
+
+Timeout behavior is unchanged: if `/joystick_data` is stale for `input_timeout_sec=0.3 s`, the node publishes `/local_driving=[0,0,0]`.

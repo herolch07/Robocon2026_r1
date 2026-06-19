@@ -598,3 +598,85 @@ dry_run:=false
 ```
 
 目前已完成 dry-run 實機確認並已把啟動腳本切到 `dry_run:=false`。四鍵長按會直接呼叫 `sudo -n /usr/bin/systemctl poweroff`。不要再讓 node 先 kill tmux，否則會把自己殺掉而無法執行 poweroff。
+
+
+## 2026-06-19 KFS gripper 人視角底盤控制（取代 2026-06-14 E-stop 基準）
+
+本節是目前最新操作依據。十字鍵現在表示 **KFS gripper 在你眼中的方向**，不是 E-stop／車頭方向。
+
+```text
+十字鍵上：KFS gripper 在你的前方，view=0
+十字鍵右：KFS gripper 在你的右方，view=1
+十字鍵下：KFS gripper 在你的後方／靠近你，view=2
+十字鍵左：KFS gripper 在你的左方，view=3
+```
+
+開機預設 `view=2`，因為目前比賽站位假設 KFS gripper 先朝向操作人。左搖桿必須回中才接受新的十字鍵方向；十字鍵不會令底盤旋轉，只更新左搖桿的人視角換算。
+
+目前實物幾何：E-stop 在北方時，KFS gripper 在西方。所以程式內部會用：
+
+```text
+E-stop/body-front view = (KFS view + 1) % 4
+```
+
+例子：你看到 KFS gripper 在左邊，先鬆開左搖桿，按十字鍵左；之後左搖桿向前，機器應該在你眼中向前平移。
+
+查看目前 KFS 視角：
+
+```bash
+ros2 topic echo /view_orientation
+```
+
+
+## 2026-06-19 KFS gripper 車頭標控制（取代同日 KFS +1 偏移方案）
+
+本節是目前最新操作依據。KFS gripper 是機器上最大、最顯眼的方向標記，因此現在直接把 **KFS gripper 當作車頭／機器前方**。
+
+```text
+十字鍵上：KFS gripper／車頭 在你的前方，view=0
+十字鍵右：KFS gripper／車頭 在你的右方，view=1
+十字鍵下：KFS gripper／車頭 在你的後方／靠近你，view=2
+十字鍵左：KFS gripper／車頭 在你的左方，view=3
+```
+
+開機預設 `view=2`，因為目前假設 KFS gripper 先朝向操作人。程式內部現在使用：
+
+```text
+body_front_view = KFS view
+```
+
+也就是不再使用舊版 `E-stop view = (KFS view + 1) % 4`。左搖桿必須回中才接受新的十字鍵方向；十字鍵不會命令底盤旋轉。
+
+
+## 2026-06-19 KFS gripper 開機預設在前方
+
+本節取代同日 v2.2 中「開機預設 view=2」的說明。現在開機預設等同 **D-pad 上**：
+
+```text
+開機預設：view=0
+意思：KFS gripper／車頭 在你的前方
+```
+
+KFS gripper 仍直接作為車頭標，十字鍵語義不變。若實際車身方向改變，仍需要左搖桿回中後按對應十字鍵重新同步。
+
+
+## 2026-06-19 KFS 車頭標 90 度校正
+
+本節取代 v2.3 的換算公式。實機測到：KFS gripper 在最前方時，按十字鍵左再推左搖桿向上，機器才在你眼中向前；按十字鍵上則向左走。這代表底盤內部 body frame 與 KFS 視覺車頭差 90 度。
+
+現在已校正為：
+
+```text
+body_front_view = (KFS view - 1) % 4
+```
+
+操作語義不變：
+
+```text
+十字鍵上：KFS gripper／視覺車頭 在你的前方
+十字鍵右：KFS gripper／視覺車頭 在你的右方
+十字鍵下：KFS gripper／視覺車頭 在你的後方
+十字鍵左：KFS gripper／視覺車頭 在你的左方
+```
+
+開機仍預設 `view=0`，也就是 KFS 在前。校正後，KFS 在前時不按十字鍵或按十字鍵上，左搖桿向前應該在你眼中向前走。

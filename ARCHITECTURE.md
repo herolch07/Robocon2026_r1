@@ -770,3 +770,57 @@ kfs_staff_gripper_arduino_node -> Arduino [KFS, M7 height, M7 gripper, M8 inclin
 ```
 
 Do not launch the legacy `pneumatic_relay_driver_node` together with `kfs_staff_gripper_arduino_node`, because both would try to own the Arduino serial path.
+
+
+## 2026-06-19 KFS gripper 視角基準更新
+
+本節取代 2026-06-15 中「D-pad 保存 E-stop 方向」的現行架構描述。節點拆分不變，只有 `joystick_bridge` 的視角語義改變：
+
+```text
+/joystick_data
+  -> joystick_bridge
+       D-pad: 保存 KFS gripper 在人視角中的 0/90/180/270 度方向
+       internal: E-stop/body-front view = (KFS view + 1) % 4
+       left stick: operator frame -> body frame
+       right stick: rotation unchanged
+  -> /local_driving
+  -> local_navigation_node
+```
+
+`/view_orientation` (`std_msgs/msg/Int32`) 現在發布 KFS gripper 方向，`0=前、1=右、2=後、3=左`。預設值為 `2`，對應 KFS gripper 開機朝向操作人。底層運動學、CAN driver、Motor6 controller、topic 類型與 watchdog 均未改變。
+
+
+## 2026-06-19 KFS gripper 車頭標架構更新
+
+本節取代同日 KFS `+1` 偏移方案。節點拆分不變，只有 `joystick_bridge` 的視角換算改為 KFS gripper 直接代表車體前方：
+
+```text
+/joystick_data
+  -> joystick_bridge
+       D-pad: 保存 KFS gripper／body-front 在人視角中的 0/90/180/270 度方向
+       internal: body_front_view = KFS view
+       left stick: operator frame -> body frame
+       right stick: rotation unchanged
+  -> /local_driving
+  -> local_navigation_node
+```
+
+`/view_orientation` (`std_msgs/msg/Int32`) 發布 KFS gripper／車頭方向，`0=前、1=右、2=後、3=左`。預設值為 `2`。底層運動學、CAN driver、Motor6 controller、topic 類型與 watchdog 均未改變。
+
+
+## 2026-06-19 KFS gripper 開機預設更新
+
+`joystick_bridge` 的節點架構不變，但 `default_view_orientation` 預設由 `2` 改為 `0`。啟動時假設 KFS gripper／body-front 在操作人視角前方。
+
+`/view_orientation` 啟動後應發布 `0`；KFS gripper 仍直接視為車體前方，內部仍使用 `body_front_view = KFS view`。
+
+
+## 2026-06-19 KFS 車頭標 90 度校正架構更新
+
+`joystick_bridge` 節點連線不變，但根據實機結果更新 operator-frame 到 body-frame 的校正公式：
+
+```text
+body_front_view = (KFS view - 1) % 4
+```
+
+`/view_orientation` 仍表示 KFS gripper／視覺車頭在人視角中的方向，啟動預設仍為 `0`。底層 `local_navigation_node`、CAN driver、topic 類型、速度限制與 watchdog 均未改變。

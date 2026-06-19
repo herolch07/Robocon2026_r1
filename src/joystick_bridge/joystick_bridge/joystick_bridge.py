@@ -108,7 +108,7 @@ class JoystickBridge(Node):
         )
         self.get_logger().info("START/SELECT chassis speed switching disabled")
         self.get_logger().info(
-            "D-pad selects operator view: up/front, right/right, "
+            "D-pad selects KFS gripper view: up/front, right/right, "
             "down/back, left/left"
         )
         self.publish_view_orientation()
@@ -159,7 +159,7 @@ class JoystickBridge(Node):
         self.joystick_seen = True
         self.timeout_stop_sent = False
 
-        # 左搖桿先按人的視角解讀；十字鍵記錄 E-stop 在人視角中的方向。
+        # 左搖桿先按人的視角解讀；十字鍵記錄 KFS gripper 在人視角中的方向。
         lx = msg.lx
         ly = msg.ly
         rx = msg.rx
@@ -194,7 +194,7 @@ class JoystickBridge(Node):
                 self.view_orientation = requested_view
                 self.publish_view_orientation()
                 self.get_logger().info(
-                    f"Operator view set: E-stop is {VIEW_NAMES[self.view_orientation]}"
+                    f"Operator view set: KFS gripper is {VIEW_NAMES[self.view_orientation]}"
                 )
             else:
                 self.get_logger().warn(
@@ -267,18 +267,25 @@ class JoystickBridge(Node):
 
     @classmethod
     def orientation_from_dpad(cls, dx, dy, current, deadzone):
-        """Map D-pad position to the absolute E-stop orientation."""
+        """Map D-pad position to the absolute KFS gripper orientation."""
         requested = cls.active_dpad_direction(dx, dy, deadzone)
         return int(current) if requested is None else requested
 
     @staticmethod
     def operator_to_body_direction(operator_direction, view_orientation):
-        """Convert an operator-frame direction into the robot body frame."""
-        body_direction = float(operator_direction) - int(view_orientation) * math.pi / 2.0
+        """Convert an operator-frame direction into the robot body frame.
+
+        view_orientation describes where the KFS gripper is in the operator
+        frame. Real-machine testing shows the chassis body-frame forward axis is
+        90 degrees counter-clockwise from the visible KFS front marker, so the
+        KFS view is shifted by one step before converting operator-frame motion.
+        """
+        body_front_view = (int(view_orientation) - 1) % 4
+        body_direction = float(operator_direction) - body_front_view * math.pi / 2.0
         return math.atan2(math.sin(body_direction), math.cos(body_direction))
 
     def publish_view_orientation(self):
-        """Publish 0=front, 1=right, 2=back, 3=left for monitoring."""
+        """Publish KFS view: 0=front, 1=right, 2=back, 3=left."""
         msg = Int32()
         msg.data = int(self.view_orientation)
         self.view_pub.publish(msg)
