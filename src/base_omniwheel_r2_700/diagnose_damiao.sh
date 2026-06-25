@@ -23,7 +23,8 @@ fi
 
 # 2. 检查工作空间
 echo "[2] 检查工作空间..."
-WORKSPACE_SETUP="/home/robotics/robocon/new_ws/install/setup.bash"
+WS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+WORKSPACE_SETUP="$WS_DIR/install/setup.bash"
 if [ -f "$WORKSPACE_SETUP" ]; then
     source "$WORKSPACE_SETUP"
     echo "  ✓ 工作空间已构建"

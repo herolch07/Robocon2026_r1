@@ -1,3 +1,5 @@
+> 2026-06-19 現行操作入口：目前手柄鍵位、STAFF/KFS mode、D-pad 視角、五路 relay 順序請先看 `/home/robotics/robocon2026_r1/r1_control_ws/CONTROLLER_USAGE.md`。本文若是舊測試/排查紀錄，內容保留作歷史，不代表目前實機鍵位。
+
 # base_omniwheel_r2_700 TODO
 
 ## 已完成
@@ -104,3 +106,78 @@
 - [x] 增加无硬件恢复状态机测试
 - [x] 实机架空测试急停按下超过 10 秒后自动恢复
 - [x] 实机确认急停释放时保持摇杆非零不会立即驱动电机
+
+
+## 2026-06-10 USB-CAN 串口权限
+
+- [x] 确认 `/dev/ttyACM0` 属于 `root:dialout` 且当前用户缺少 `dialout` 组权限
+- [x] `damiao_node` 在 `Errno 13` 时输出永久权限修复命令
+- [x] README 追加 `dialout` 配置、重新登录与验证步骤
+- [ ] 将部署用户加入 `dialout` 组后重新登录并完成 USB-CAN 实机连接验证
+
+## 2026-06-10 DM-S3519 反馈与速度边界修正
+
+- [x] 按 DM-S3519-1EC 手册确认 VEL 指令和反馈速度均为减速器输出轴 `rad/s`
+- [x] 修复 USB-CAN `16 byte` 接收帧边界和半帧缓存
+- [x] 按 `DATA[0]` 低/高 4 bit 分别解析电机 ID 与状态码
+- [x] 按协议字段解析位置、速度、转矩、MOS 温度和转子温度
+- [x] 将电机枚举由 `DMH3510` 修正为 `DMS3519`
+- [x] 将默认轮速上限由历史 `64.0 rad/s` 修正为 `40.0 rad/s`
+- [x] 新增 DM-S3519 反馈帧单元测试
+- [x] README 追加 v13 协议、单位、限幅和超时行为说明
+- [ ] 读取 7 台实机的 `PMAX/VMAX/TMAX` 寄存器并替换临时映射值
+- [ ] 架空逐台验证反馈 ID、速度方向、状态码和温度
+- [ ] 实机验证 150 cm/s 纯平移及平移/旋转叠加时是否触发 `40.0 rad/s` 同比限幅
+
+## 2026-06-10 当前理论速度文档
+
+- [x] 记录当前 `150 cm/s` 手柄目标和 `40 rad/s` 软件轮速限制
+- [x] 记录 DM-S3519 额定 395 rpm 与空载最高 435 rpm 的理论底盘速度
+- [x] 区分纯前后/左右与斜向最坏方向速度边界
+- [x] 记录 150/170 cm/s 在平移和旋转叠加时的单轮需求
+- [x] 记录临时调参、永久修改方式和逐级提速测试步骤
+- [x] 说明 `VMAX=200` 是反馈映射范围，不是电机机械速度
+- [ ] 实机带载测量 150/160/170 cm/s 的实际速度、电流、压降和温度
+
+## 2026-06-11 四轮统一矢量加速度限制
+
+- [x] 删除四轮逐个独立截断的加速度限制实现
+- [x] 使用统一 `alpha` 缩放整组四轮速度变化
+- [x] 保持 `max_wheel_accel_rad_s2 = 25.0 rad/s^2`
+- [x] 保持 `max_wheel_speed_rad_s = 40.0 rad/s` 四轮同比限幅
+- [x] 新增 22° 类不等轮速比例保持测试
+- [x] 新增最大轮速变化量和直通行为测试
+- [x] README 追加 v15 原因、算法、影响边界和实机步骤
+- [ ] 实机测试 0°/22°/45°/90° 起步与方向切换偏航
+- [ ] 记录偏航发生在加速阶段还是匀速阶段
+- [ ] 若匀速仍偏航，检查轮组接地并校准四轮输出增益
+
+
+## 2026-06-12 Motor 8 POS_VEL 支持
+
+- [x] 默认电机列表增加 Motor 8
+- [x] 新增 `position_mode_motor_ids = [8]` 混合模式参数
+- [x] Motor 1-7 保持 VEL，Motor 8 初始化和恢复使用 POS_VEL
+- [x] POS_VEL 恢复时保持实时位置，不重放旧目标
+- [x] 增加位置命令 watchdog
+- [x] `/damiao_motor_status` 追加 q/dq/tau/control_mode
+- [x] 新增 Motor 8 混合模式与急停恢复无硬件测试
+- [ ] 实机确认 Motor 8 CAN ID 为 8 且反馈正确归属
+- [ ] 后续按 chassis/mechanism 拆分两个 USB-CAN driver 实例和稳定设备路径
+
+## 2026-06-13 Motor 7 加入 POS_VEL
+
+- [x] 默认 `position_mode_motor_ids` 改为 `[7, 8]`
+- [x] Motor 7/8 共用位置模式恢复与安全保持逻辑
+- [x] 保持 Motor 1-6 的 VEL 控制不变
+- [ ] 实机确认 Motor 7 的 POS_VEL 反馈与急停恢复
+
+## 2026-06-19 加速度斜坡模式切換
+
+- [x] 新增 `accel_limit_mode` 參數
+- [x] 預設改為 `per_wheel`，保留速度斜坡但暫停四輪 vector alpha
+- [x] 保留 `vector` 模式，方便 runtime 對比測試
+- [x] 新增 per-wheel acceleration limiter 單元測試
+- [ ] 實機比較 `per_wheel` 與 `vector` 在 22°、45°、高速起步時的偏航差異
+
+maintainer: Hero@EdUHK robotics team 2026 | github: herolch07

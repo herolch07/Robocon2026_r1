@@ -1,0 +1,16 @@
+[Unit]
+Description=R1 controller-gated robot autostart watcher
+After=multi-user.target
+
+[Service]
+Type=simple
+User=robotics
+WorkingDirectory=/home/robotics/robocon2026_r1/r1_control_ws
+Environment=DEVICE_NAME_FILTER=8BitDo
+Environment=STOP_ON_CONTROLLER_LOST=0
+ExecStart=/home/robotics/robocon2026_r1/r1_control_ws/scripts/wait_and_start_robot.sh
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

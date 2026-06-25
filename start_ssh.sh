@@ -4,6 +4,8 @@
 
 set -e
 
+WS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 echo "=========================================="
 echo "  启动底盘控制系统 - R2-700 (SSH 版本)"
 echo "=========================================="
@@ -35,7 +37,6 @@ if tmux has-session -t $SESSION 2>/dev/null; then
 fi
 
 # 工作目录
-WS_DIR="/home/robotics/robocon/new_ws"
 
 echo "✅ 创建 tmux 会话：$SESSION"
 echo ""

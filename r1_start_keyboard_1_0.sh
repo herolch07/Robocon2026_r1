@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-WS_DIR="/home/robotics/robocon/new_ws"
+WS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SESSION="r1_keyboard_control"
 
 if ! command -v tmux >/dev/null 2>&1; then

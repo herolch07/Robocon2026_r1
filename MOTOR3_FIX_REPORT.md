@@ -1,3 +1,5 @@
+> 2026-06-19 現行操作入口：目前手柄鍵位、STAFF/KFS mode、D-pad 視角、五路 relay 順序請先看 [`CONTROLLER_USAGE.md`](CONTROLLER_USAGE.md)。本文若是舊測試/排查紀錄，內容保留作歷史，不代表目前實機鍵位。
+
 # Motor 3 无限重启问题修复报告
 
 > 当前状态说明：本报告记录早期 Motor 3 `isEnable`/CAN feedback 解析问题。当前最终实机记录还确认过另一个 Motor 3 反向响应慢问题，最终原因是 ESC 损坏；这不是本报告中的软件解析问题。当前完整操作请以 `README.md` 和 `r1 final operation guide 1.0.md` 为准。
@@ -107,7 +109,7 @@ motor.isEnable 状态永远是 False
 
 **文件路径：**
 ```
-/home/robotics/robocon/new_ws/src/base_omniwheel_r2_700/base_omniwheel_r2_700/DM_CAN.py
+/home/robotics/robocon2026_r1/r1_control_ws/src/base_omniwheel_r2_700/base_omniwheel_r2_700/DM_CAN.py
 ```
 
 **修改位置：** 第 114-118 行
@@ -206,7 +208,7 @@ is_enabled = (data[3] >> 4) & 0x0F
 
 ### 1. 重新编译
 ```bash
-cd /home/robotics/robocon/new_ws
+cd /home/robotics/robocon2026_r1/r1_control_ws
 colcon build --packages-select base_omniwheel_r2_700
 source install/setup.bash
 ```
@@ -234,9 +236,9 @@ ros2 run base_omniwheel_r2_700 damiao_node
 
 ## 📚 相关文档
 
-- **测试指南：** `/home/robotics/robocon/new_ws/TESTING_GUIDE.md`
-- **快速启动：** `/home/robotics/robocon/new_ws/QUICK_START.md`
-- **当前一键启动脚本：** `/home/robotics/robocon/new_ws/r1_start_base_1_0.sh`
+- **测试指南：** `/home/robotics/robocon2026_r1/r1_control_ws/TESTING_GUIDE.md`
+- **快速启动：** `/home/robotics/robocon2026_r1/r1_control_ws/QUICK_START.md`
+- **当前一键启动脚本：** `/home/robotics/robocon2026_r1/r1_control_ws/r1_start_base_1_0.sh`
 
 ---
 
@@ -276,3 +278,5 @@ ros2 run base_omniwheel_r2_700 damiao_node
 **修复人员：** Qoder AI Assistant  
 **问题发现者：** 用户（准确观察到 data[3] 的编码规律）  
 **状态：** ✅ 已解决
+
+maintainer: Hero@EdUHK robotics team 2026 | github: herolch07

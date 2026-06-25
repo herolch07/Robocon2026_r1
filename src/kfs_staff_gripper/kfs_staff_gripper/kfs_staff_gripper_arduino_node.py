@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-ROS2 three-relay Arduino Mega driver for the KFS staff gripper panel.
+ROS2 five-relay Arduino Mega driver for two staff grippers and KFS gripper.
 
-This node is designed for the Arduino sketch that accepts serial commands in the
-exact format "[1,0,1]". Because the staff gripper shares the same Arduino Mega
+This node targets the Arduino sketch that accepts serial commands in the exact
+format "[1,0,1,0,1]". Because the staff gripper shares the same Arduino Mega
 panel as the existing pneumatic arm system, this node aggregates both command
 sources and opens the serial port only once.
 """
@@ -22,19 +22,37 @@ except ImportError:  # pragma: no cover - reported clearly at runtime on robot
     serial = None
 
 
+RELAY_COUNT = 5
+DEFAULT_SAFE_STATE = [0, 1, 0, 1, 0]
+
+
+def normalize_relay_state(state):
+    """Return exactly five relay values or raise ValueError."""
+    values = [1 if int(value) else 0 for value in state]
+    if len(values) != RELAY_COUNT:
+        raise ValueError(f"expected {RELAY_COUNT} relay values, got {len(values)}")
+    return values
+
+
+def format_relay_command(state):
+    """Format a validated five-relay state for the Arduino line protocol."""
+    values = normalize_relay_state(state)
+    return "[" + ",".join(str(value) for value in values) + "]\n"
+
+
 class KfsStaffGripperArduinoNode(Node):
     """
-    Aggregate arm pneumatic and KFS staff gripper relay commands.
+    Aggregate two arm pneumatic mechanisms and the KFS gripper.
 
     Subscribes:
-      /pneumatic_gripper_cmd: Int32MultiArray, default mapped to relay 1-2
-      /kfs_staff_gripper_cmd: Int32MultiArray, default mapped to relay 3
+      /pneumatic_gripper_cmd: Int32MultiArray, default mapped to relay 2-5
+      /kfs_staff_gripper_cmd: Int32MultiArray, default mapped to relay 1
 
     Publishes:
       /kfs_staff_gripper_status: String status and Arduino serial feedback
 
     Output to Arduino:
-      [relay1,relay2,relay3]\n, where each value is 0 or 1.
+      [relay1,relay2,relay3,relay4,relay5]\n.
     """
 
     def __init__(self):
@@ -49,9 +67,9 @@ class KfsStaffGripperArduinoNode(Node):
         self.declare_parameter("command_timeout_sec", 0.5)
         self.declare_parameter("watchdog_hz", 20.0)
         self.declare_parameter("reconnect_sec", 1.0)
-        self.declare_parameter("safe_state", [0, 1, 0])
-        self.declare_parameter("arm_relay_indices", [0, 1])
-        self.declare_parameter("staff_relay_indices", [2])
+        self.declare_parameter("safe_state", DEFAULT_SAFE_STATE)
+        self.declare_parameter("arm_relay_indices", [1, 2, 3, 4])
+        self.declare_parameter("staff_relay_indices", [0])
         self.declare_parameter("arm_cmd_topic", "/pneumatic_gripper_cmd")
         self.declare_parameter("staff_cmd_topic", "/kfs_staff_gripper_cmd")
 
@@ -87,10 +105,10 @@ class KfsStaffGripperArduinoNode(Node):
         self.get_logger().info(f"KFS staff topic: {staff_topic}")
 
     def get_safe_state(self):
-        """Return a three-relay safe state, clamped to 0/1 values."""
+        """Return the five-relay safe state, clamped to 0/1 values."""
         raw = list(self.get_parameter("safe_state").value)
-        safe = [0, 0, 0]
-        for index, value in enumerate(raw[:3]):
+        safe = list(DEFAULT_SAFE_STATE)
+        for index, value in enumerate(raw[:RELAY_COUNT]):
             safe[index] = 1 if int(value) else 0
         return safe
 
@@ -99,7 +117,7 @@ class KfsStaffGripperArduinoNode(Node):
         return [
             int(index)
             for index in list(self.get_parameter(parameter_name).value)
-            if 0 <= int(index) < 3
+            if 0 <= int(index) < RELAY_COUNT
         ]
 
     def connect_serial(self):
@@ -159,41 +177,46 @@ class KfsStaffGripperArduinoNode(Node):
         return None
 
     def arm_command_callback(self, msg):
-        """Update relay 1-2 from the existing arm pneumatic command topic."""
-        self.apply_partial_command(
+        """Update relay 2-5 from the staff pneumatic command topic."""
+        if self.apply_partial_command(
             msg.data,
             self.get_indices("arm_relay_indices"),
             source="arm_pneumatic",
-        )
-        self.last_arm_command_time = time.monotonic()
-        self.arm_timeout_safe_sent = False
+        ):
+            self.last_arm_command_time = time.monotonic()
+            self.arm_timeout_safe_sent = False
 
     def staff_command_callback(self, msg):
-        """Update relay 3 from the KFS staff gripper command topic."""
-        self.apply_partial_command(
+        """Update relay 1 from the KFS staff gripper command topic."""
+        if self.apply_partial_command(
             msg.data,
             self.get_indices("staff_relay_indices"),
             source="kfs_staff",
-        )
-        self.last_staff_command_time = time.monotonic()
-        self.staff_timeout_safe_sent = False
+        ):
+            self.last_staff_command_time = time.monotonic()
+            self.staff_timeout_safe_sent = False
 
     def apply_partial_command(self, data, indices, source):
-        """Merge a shorter command into the three-relay Arduino state."""
-        if len(data) < len(indices):
+        """Merge a source command into its configured relay positions."""
+        if len(data) != len(indices):
             self.get_logger().warn(
                 f"Invalid {source} command: expected {len(indices)} values, got {len(data)}"
             )
-            return
+            return False
 
         state = list(self.current_state)
         for src_index, relay_index in enumerate(indices):
             state[relay_index] = 1 if int(data[src_index]) else 0
         self.send_state(state, reason=source)
+        return True
 
     def send_state(self, state, reason, force=False):
-        """Send the three-relay state using the Arduino sketch list protocol."""
-        self.current_state = [1 if int(value) else 0 for value in state[:3]]
+        """Send the five-relay state using the Arduino sketch list protocol."""
+        try:
+            self.current_state = normalize_relay_state(state)
+        except ValueError as exc:
+            self.get_logger().error(f"Refusing invalid relay state: {exc}")
+            return
         if not force and self.last_serial_state == self.current_state:
             return
 
@@ -201,7 +224,7 @@ class KfsStaffGripperArduinoNode(Node):
             self.publish_status(f"NOT_CONNECTED {reason} state={self.current_state}")
             return
 
-        line = "[" + ",".join(str(value) for value in self.current_state) + "]\n"
+        line = format_relay_command(self.current_state)
         try:
             self.serial_handle.write(line.encode("ascii"))
             self.serial_handle.flush()

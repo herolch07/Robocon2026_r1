@@ -1,3 +1,5 @@
+> 2026-06-19 現行操作入口：目前手柄鍵位、STAFF/KFS mode、D-pad 視角、五路 relay 順序請先看 [`CONTROLLER_USAGE.md`](CONTROLLER_USAGE.md)。本文若是舊測試/排查紀錄，內容保留作歷史，不代表目前實機鍵位。
+
 # R1 当前安全保护报告
 
 本报告记录当前 R1 ROS 2 工作区的安全保护状态。旧版报告中关于 `±8192`、deadzone `410`、`joystick_bridge` 缺少 timeout、默认速度 `100 cm/s` 的内容已经过时。
@@ -22,13 +24,14 @@ Joystick deadzone: 15
 ```text
 joystick_bridge max_speed_cm = 150.0
 joystick_bridge translation_linear_weight = 0.1
-joystick_bridge max_rotation = 1.2
+joystick_bridge max_rotation = 3.0
 joystick_bridge rotation_linear_weight = 0.1
-local_navigation_node max_wheel_speed_rad_s = 64.0
-local_navigation_node max_wheel_accel_rad_s2 = 12.0
+local_navigation_node max_wheel_speed_rad_s = 40.0
+local_navigation_node max_wheel_accel_rad_s2 = 25.0
+local_navigation_node accel_limit_mode = per_wheel
 ```
 
-这些默认值用于低速联调，降低横向、斜向、旋转叠加时的电流冲击。
+这些默认值对应当前 DM-S3519 底盘配置：150 cm/s 手柄目标、40 rad/s 轮速上限、25 rad/s² 加速度上限。
 
 ## Watchdog 链路
 
@@ -118,7 +121,7 @@ status topic 中 timeout_active = 1.0
 
 ## 建议
 
-- 当前源码默认值为 `150 cm/s` 和 `1.2 rad/s`。首次离地调试可临时设置 `max_speed_cm = 20.0`、`max_rotation = 0.5`，重启后恢复源码默认值。
+- 当前源码默认值为 `150 cm/s` 和 `3.0 rad/s`。首次离地调试可临时设置 `max_speed_cm = 20.0`、`max_rotation = 0.5`，重启后恢复源码默认值。
 - 只在实机方向确认后再逐步提高速度。
 - 不建议关闭 timeout；如需调试，只做小范围增大。
 
@@ -135,8 +138,29 @@ ROS_LOCALHOST_ONLY=1
 
 ## 2026-06-06 平移曲线更新
 
-当前 `joystick_bridge` 平移上限为 `150 cm/s`、旋转上限为 `1.2 rad/s`，两者均使用 `0.1x + 0.9x³`。Motor 7 最大 `1.3 rad/s`，R2/L2 净输入也使用同一曲线。输入 watchdog 和 `local_navigation_node` 轮速加速度限制不变。
+当前 `joystick_bridge` 平移上限为 `150 cm/s`、旋转上限为 `3.0 rad/s`，两者均使用 `0.1x + 0.9x³`。Motor 7 最大 `1.3 rad/s`，R2/L2 净输入也使用同一曲线。输入 watchdog 和 `local_navigation_node` 轮速加速度限制不变。
 
 ## 2026-06-07 电机断电恢复保护
 
 `damiao_node` 增加反馈 watchdog：`feedback_timeout_sec = 0.5 s`。反馈超时或 `isEnable = false` 后，电机进入 `RECOVERING`，非零命令被阻止，并每 `recovery_retry_sec = 2.0 s` 自动发送 `VEL mode + enable + 0 rad/s`。收到已使能反馈后仍需一次零速回中才进入 `READY`。状态通过 `/damiao_motor_status` 发布。该机制用于急停切断电机分电板但 USB-CAN 仍保持在线的情况。
+
+
+## 2026-06-15 人視角切換安全行為
+
+十字鍵現在只更新左搖桿的人視角方向，不直接輸出底盤速度。`joystick_bridge` 預設
+`view_change_requires_neutral=true`，左搖桿未回中時會拒絕視角切換，避免移動中方向瞬間跳變。
+`/joystick_data` 超過 `0.3 s` 未更新時仍發布 `/local_driving=[0,0,0]`，底盤既有多層
+watchdog 不變。Motor6 改由 `L3/R3` 控制，兩鍵同時按下或全部鬆開均輸出 `0 rad/s`。
+本功能已於 2026-06-15 完成實機驗證。
+
+## 2026-06-20 Current Rotation Default
+
+Current source default:
+
+```text
+joystick_bridge.max_rotation = 3.0 rad/s
+```
+
+Older sections mentioning `1.2 rad/s` or `2.4 rad/s` are historical and are not the current runtime default.
+
+maintainer: Hero@EdUHK robotics team 2026 | github: herolch07

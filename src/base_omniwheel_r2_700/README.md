@@ -1,3 +1,7 @@
+> 2026-06-19 現行操作入口：目前手柄鍵位、STAFF/KFS mode、D-pad 視角、五路 relay 順序請先看 `/home/robotics/robocon2026_r1/r1_control_ws/CONTROLLER_USAGE.md`。本文若是舊測試/排查紀錄，內容保留作歷史，不代表目前實機鍵位。
+
+> 2026-06-19 現行操作準則：手柄鍵位、STAFF/KFS mode、D-pad 視角與五路 relay 順序以 `/home/robotics/robocon2026_r1/r1_control_ws/CONTROLLER_USAGE.md` 為唯一準則。本文件較早日期的鍵位段落保留為歷史紀錄，不作為目前實機操作依據。
+
 # base_omniwheel_r2_700
 
 ROS 2 motor control package for R2 omniwheel base.
@@ -5,7 +9,7 @@ ROS 2 motor control package for R2 omniwheel base.
 ## Changelog
 
 ### 2026-06-07 - v11 急停断电自动恢复与回中解锁
-- `damiao_node` 记录每台 Motor 1-7 的最后反馈时间和使能状态。
+- `damiao_node` 记录每台 Motor 1-8 的最后反馈时间、使能状态和配置控制模式。
 - 反馈超过 `feedback_timeout_sec = 0.5 s` 未更新，或反馈显示 `isEnable = false` 时，该电机进入 `RECOVERING`。
 - `RECOVERING` 期间只发送 `0 rad/s`，每 `recovery_retry_sec = 2.0 s` 自动重发 `VEL mode + enable + zero`，不会转发手柄非零命令。
 - 收到新鲜的已使能反馈后进入 `WAIT_NEUTRAL`；必须先收到一次零速命令，才进入 `READY` 并恢复运动。
@@ -32,8 +36,8 @@ ROS 2 motor control package for R2 omniwheel base.
 
 ### 2026-05-16 - v5 轮速限幅与加速度保护
 - **Local Navigation Node**: 新增输出保护，降低调试时 CAN/电机驱动断连风险
-  - 新增 `max_wheel_speed_rad_s`，当前默认 `64.0 rad/s`
-  - 新增 `max_wheel_accel_rad_s2`，默认 `12.0 rad/s²`
+  - 新增 `max_wheel_speed_rad_s`，此版本當時默认 `64.0 rad/s`；目前 source 預設為 `40.0 rad/s`
+  - 新增 `max_wheel_accel_rad_s2`，此版本當時默认 `12.0 rad/s²`；目前 source 預設為 `25.0 rad/s²`
   - 斜向移动或平移+旋转叠加时，如果某个轮速超过限制，会按比例缩放全部轮速，保持运动方向但降低强度
   - 摇杆突然大幅移动时，会限制每个轮子的速度变化率，减少瞬时电流冲击
 - **安全建议**:
@@ -162,9 +166,9 @@ Older notes mention `vesc_node` and `vesc_canbus_speed_control_node`. They are n
   - Use `-1.0` if left/right translation direction is reversed on another hardware setup
 - **rotation_axis_sign**: Rotation command sign (default: `1.0`)
   - Use `-1.0` if pure rotation direction is reversed on hardware
-- **max_wheel_speed_rad_s**: Per-wheel speed limit before publishing to `/damiao_control` (default: `64.0 rad/s`)
+- **max_wheel_speed_rad_s**: Per-wheel speed limit before publishing to `/damiao_control` (default: `40.0 rad/s`)
   - If any wheel exceeds this value, all four wheel speeds are scaled together
-- **max_wheel_accel_rad_s2**: Per-wheel acceleration limit (default: `12.0 rad/s²`)
+- **max_wheel_accel_rad_s2**: Per-wheel acceleration limit (default: `25.0 rad/s²`)
   - Set to `0.0` to disable acceleration limiting
 - **motor_direction_1** ~ **motor_direction_4**: Per-motor output sign (default: `[-1, 1, -1, 1]`)
   - Use `1.0` for normal direction, `-1.0` for reversed direction
@@ -280,7 +284,7 @@ ros2 topic pub /damiao_control std_msgs/msg/Float32MultiArray "{data: [3.0, 0.0,
 
 当前实现区分两种故障：
 
-1. **USB-CAN 串口消失或关闭**：每 `2.0 s` 无限重连；重连后重新创建 Motor 1-7 并进入安全恢复状态。
+1. **USB-CAN 串口消失或关闭**：每 `2.0 s` 无限重连；重连后重新创建 Motor 1-8 并进入安全恢复状态。
 2. **急停只切断电机电源，但 USB-CAN 仍由树莓派供电**：根据每台电机反馈超时/失能进入 `RECOVERING`，不依赖串口消失。
 
 恢复流程：
@@ -308,11 +312,11 @@ Script: `test_local_navigation.sh`
 Run:
 ```bash
 # Terminal 1: Start damiao_node
-source ~/robotics/robocon/new_ws/install/setup.bash
+source /home/robotics/robocon2026_r1/r1_control_ws/install/setup.bash
 ros2 run base_omniwheel_r2_700 damiao_node
 
 # Terminal 2: Start local_navigation_node
-source ~/robotics/robocon/new_ws/install/setup.bash
+source /home/robotics/robocon2026_r1/r1_control_ws/install/setup.bash
 ros2 run base_omniwheel_r2_700 local_navigation_node
 
 # Terminal 3: Run test
@@ -327,7 +331,7 @@ Script: `test_damiao_vel.sh`
 
 Run on host:
 ```bash
-bash /home/robotics/robocon/new_ws/src/base_omniwheel_r2_700/test_damiao_vel.sh
+bash /home/robotics/robocon2026_r1/r1_control_ws/src/base_omniwheel_r2_700/test_damiao_vel.sh
 ```
 
 ### Single Motor Test
@@ -338,7 +342,7 @@ Script: `test_single_motor.sh`
 
 Run on host:
 ```bash
-bash /home/robotics/robocon/new_ws/src/base_omniwheel_r2_700/test_single_motor.sh
+bash /home/robotics/robocon2026_r1/r1_control_ws/src/base_omniwheel_r2_700/test_single_motor.sh
 ```
 
 ### Diagnostic Tools
@@ -361,7 +365,7 @@ bash test_damiao.sh
 
 ## Legacy Docker Notes
 
-Docker was used in older R2 notes. The current R1 verified workflow runs directly from `/home/robotics/robocon/new_ws` and uses `./r1_start_base_1_0.sh`. The Docker paths below are historical references and may not exist in this workspace:
+Docker was used in older R2 notes. The current R1 verified workflow runs directly from `/home/robotics/robocon2026_r1/r1_control_ws` and uses `./r1_start_base_1_0.sh`. The Docker paths below are historical references and may not exist in this workspace:
 
 - `Robocon2026_r2/Dockerfile`
 - `2026R2_ws/src/base_omniwheel_r2_700/run_r2_base_docker.sh`
@@ -369,7 +373,7 @@ Docker was used in older R2 notes. The current R1 verified workflow runs directl
 Historical build/enter command:
 
 ```bash
-sudo bash /home/robotics/robocon/new_ws/src/base_omniwheel_r2_700/run_r2_base_docker.sh
+sudo bash /home/robotics/robocon2026_r1/r1_control_ws/src/base_omniwheel_r2_700/run_r2_base_docker.sh
 ```
 
 The script automatically sources ROS Jazzy and workspace setup, so you can run ROS commands immediately.
@@ -377,7 +381,7 @@ The script automatically sources ROS Jazzy and workspace setup, so you can run R
 Inside the container:
 
 ```bash
-bash /home/robotics/robocon/new_ws/src/base_omniwheel_r2_700/test_damiao.sh
+bash /home/robotics/robocon2026_r1/r1_control_ws/src/base_omniwheel_r2_700/test_damiao.sh
 ```
 
 Notes:
@@ -469,8 +473,9 @@ ros2 param set /local_navigation_node motor_direction_4 1.0
 默认参数：
 
 ```text
-max_wheel_speed_rad_s = 64.0 rad/s
-max_wheel_accel_rad_s2 = 12.0 rad/s²
+max_wheel_speed_rad_s = 40.0 rad/s
+max_wheel_accel_rad_s2 = 25.0 rad/s²
+accel_limit_mode = per_wheel
 ```
 
 行为：
@@ -490,8 +495,9 @@ ros2 param set /local_navigation_node max_wheel_accel_rad_s2 6.0
 恢复当前默认：
 
 ```bash
-ros2 param set /local_navigation_node max_wheel_speed_rad_s 64.0
-ros2 param set /local_navigation_node max_wheel_accel_rad_s2 12.0
+ros2 param set /local_navigation_node max_wheel_speed_rad_s 40.0
+ros2 param set /local_navigation_node max_wheel_accel_rad_s2 25.0
+ros2 param set /local_navigation_node accel_limit_mode per_wheel
 ```
 
 ### damiao_node 电机级连续速度命令保护
@@ -556,7 +562,7 @@ ros2 param set /motor_controller_node command_timeout_sec 0.5
 
 ### 最小测试命令
 ```bash
-source /home/robotics/robocon/new_ws/install/setup.bash
+source /home/robotics/robocon2026_r1/r1_control_ws/install/setup.bash
 ros2 topic pub --once /local_driving std_msgs/msg/Float32MultiArray "{data: [1.5708, 10.0, 0.0]}"
 ros2 topic pub --once /local_driving std_msgs/msg/Float32MultiArray "{data: [-1.5708, 10.0, 0.0]}"
 ```
@@ -635,7 +641,7 @@ X: pneumatic height LOW latch
 完整手柄控制系统使用根目录脚本：
 
 ```bash
-cd /home/robotics/robocon/new_ws
+cd /home/robotics/robocon2026_r1/r1_control_ws
 ./r1_start_base_1_0.sh
 ```
 
@@ -699,7 +705,7 @@ feedback_age_sec = -1 表示启动后从未收到反馈
 ### 实机测试步骤
 
 1. 将底盘架空，启动 `./r1_start_base_1_0.sh`，手柄保持回中。
-2. 确认 Motor 1-7 最终为 `state_code = 2`。
+2. 确认 Motor 1-8 最终为 `state_code = 2`。
 3. 按下急停切断电机分电板，预期状态转为 `0`，且所有非零命令被阻止。
 4. 释放急停，不重启 bash；节点每 `2.0 s` 自动重发模式、使能和零速。
 5. 看到状态 `1` 后松开摇杆/按钮回中，状态应转为 `2`。
@@ -718,6 +724,358 @@ ros2 param set /motor_controller_node recovery_retry_sec 3.0
 
 ### 2026-06-07 实机确认
 
-- 急停按下超过 10 秒后，释放急停，无需重启 bash，Motor 1-7 可以自动恢复。
+- 急停按下超过 10 秒后，释放急停，无需重启 bash，Motor 1-8 可以自动恢复。
 - 急停释放时保持摇杆非零，电机不会立即运动。
 - 操作者松开摇杆回中后，状态由 `WAIT_NEUTRAL` 进入 `READY`，随后可重新正常控制。
+
+
+## 2026-06-10 - v12 USB-CAN 串口权限诊断
+
+### 问题判定
+
+当日志包含以下内容时：
+
+```text
+Permission denied: /dev/ttyACM0
+```
+
+如果设备权限为 `root:dialout` 且当前用户不在 `dialout` 组，节点无法打开 USB-CAN 串口。节点现在会在 `Errno 13` 时打印对应的永久修复命令，同时保持断连安全状态并每 `2.0 s` 重试。
+
+### 永久修复
+
+```bash
+sudo usermod -aG dialout robotics
+```
+
+执行后必须注销并重新登录，或重启系统。重新登录后确认：
+
+```bash
+id
+ls -l /dev/ttyACM0
+```
+
+`id` 输出应包含 `dialout`。之后重新启动：
+
+```bash
+cd /home/robotics/robocon2026_r1/r1_control_ws
+source install/setup.bash
+./r1_start_base_1_0.sh
+```
+
+不建议长期使用 `sudo ros2 run` 或把设备设置为 `chmod 777`；前者会改变 ROS 环境和文件属主，后者会放宽所有本机用户的硬件访问权限。
+
+## 2026-06-10 - v13 DM-S3519 反馈解析与轮速上限修正
+
+### 当前硬件与单位
+
+- 当前底盘电机型号按 **DM-S3519-1EC** 配置，不再使用旧代码中的 `DMH3510` 型号枚举。
+- VEL 模式的 `V_desired` 和反馈 `dq` 均为减速器输出轴角速度，单位为 `rad/s`，不应再次除以约 `19.2:1` 的减速比。
+- 规格书额定转速 `395 rpm` 约为 `41.36 rad/s`，空载最高转速 `435 rpm` 约为 `45.55 rad/s`。
+- `local_navigation_node.max_wheel_speed_rad_s` 当前默认值改为 `40.0 rad/s`。本节取代旧版本中 `64.0 rad/s` 的当前配置说明；旧内容仅保留为历史记录。
+
+轮半径为 `0.0635 m` 时，`40.0 rad/s` 对应轮缘线速度约 `2.54 m/s`。手柄 `150 cm/s` 纯平移指令约需 `23.62 rad/s`，因此该限幅不会直接把纯平移的 150 cm/s 截断；斜向、旋转叠加和标定矩阵可能使单轮需求更高，超过 `40.0 rad/s` 时四轮会按同比例缩放。
+
+### CAN 反馈格式
+
+USB-CAN 接收按完整 `16 byte` 帧解析：
+
+```text
+AA 11 XX CAN_ID[4] DATA[8] 55
+```
+
+DM-S3519 的 `DATA[0]` 低 4 bit 是电机 ID，高 4 bit 是使能/故障状态；`DATA[1:3]` 是位置，`DATA[3:5]` 是速度，`DATA[4:6]` 是转矩，`DATA[6]` 与 `DATA[7]` 分别是 MOS 和转子温度。旧实现把 `data[3]` 同时当成 ID、状态和速度的一部分，会造成电机编号错乱及 `q/dq` 长期饱和。
+
+`/damiao_motor_status` 每台电机现追加以下字段：
+
+```text
+[7] error_code
+[8] mos_temperature_c，未知时为 -1
+[9] rotor_temperature_c，未知时为 -1
+```
+
+原有 `[0]..[6]` 字段保持不变。状态码 `1` 才视为已使能，其余状态进入现有恢复/零速保护流程。
+
+### 参数边界与实机确认
+
+驱动解码暂按 `PMAX=12.5 rad`、`VMAX=45 rad/s`、`TMAX=10 Nm` 映射。`PMAX/VMAX/TMAX` 是驱动器可写寄存器，必须读取实机寄存器确认；如果实机值不同，反馈物理量会按比例偏差，但原始 ID、状态和温度仍可正确解析。
+
+实机验证命令：
+
+```bash
+ros2 param get /local_navigation_node max_wheel_speed_rad_s
+ros2 topic echo /damiao_motor_status
+```
+
+架空底盘低速转动单个轮子时，应只更新对应 Motor，`error_code=1`，速度符号与指令一致，温度处于合理范围。反馈不新鲜、未使能或故障时，driver 会阻止非零命令并按既有 `feedback_timeout_sec`、`recovery_retry_sec` 参数执行安全恢复。
+
+## 2026-06-10 - v14 当前底盘理论速度与提速方法
+
+当前有效默认值：
+
+```text
+max_speed_cm = 150.0 cm/s
+max_rotation = 3.0 rad/s
+max_wheel_speed_rad_s = 40.0 rad/s
+max_wheel_accel_rad_s2 = 25.0 rad/s^2
+wheel radius = 0.0635 m
+```
+
+理论边界：
+
+| 边界 | 纯前后/左右 | 斜向最坏方向 |
+|---|---:|---:|
+| 当前手柄目标 | `150 cm/s` | `150 cm/s` |
+| `40 rad/s` 软件轮速限制 | `254 cm/s` | `180 cm/s` |
+| DM-S3519 额定 395 rpm | `263 cm/s` | `186 cm/s` |
+| DM-S3519 空载最高 435 rpm | `289 cm/s` | `205 cm/s` |
+
+当前校准矩阵的斜向最忙单轮约为纯直线的 `sqrt(2)` 倍。`150 cm/s` 斜向加最大 `3.0 rad/s` 旋转约需 `48.86 rad/s`，会触发 `40 rad/s` 四轮同比速度限幅。
+
+临时提高到 `170 cm/s`：
+
+```bash
+ros2 param set /joystick_bridge max_speed_cm 170.0
+```
+
+纯平移可以达到目标；斜向叠加最大旋转约需 `44.04 rad/s`，会触发四轮同比缩放。完整公式、提速步骤、风险和 `VMAX=200` 的解释见 workspace 根目录 `SPEED_TUNING.md` 的“2026-06-10 当前有效速度边界”章节。
+
+## 2026-06-11 - v15 加速度斜坡模式可切換（source-verified current）
+
+### 修改原因
+
+較高 `max_wheel_accel_rad_s2` 會讓底盤起步和煞車更直接，但不同方向的四輪目標速度比例不同。如果加速度限制方式不清楚，容易誤判 22°、45° 等方向的偏航來源。
+
+### 当前实现
+
+`local_navigation_node` 目前 source code 保留兩種加速度限制模式，由參數選擇：
+
+```text
+accel_limit_mode = per_wheel   # 預設，目前 start base 直接啟動時使用
+accel_limit_mode = vector      # 可選，四輪共享 alpha 的矢量加速度限制
+```
+
+預設 `per_wheel` 會對每個輪子各自限制每周期最大變化量：
+
+```text
+new_i = current_i + clamp(target_i - current_i, -max_delta, +max_delta)
+```
+
+可選 `vector` 模式會計算整組四輪速度差的最大值，四輪共享同一個 `alpha`：
+
+```text
+delta_i = target_i - current_i
+peak_delta = max(abs(delta_i))
+alpha = min(1, max_wheel_accel_rad_s2 * dt / peak_delta)
+new_i = current_i + alpha * delta_i
+```
+
+因此，現在直接啟動 `r1_start_base_1_0.sh` 時不會使用 vector limit；除非你手動執行：
+
+```bash
+ros2 param set /local_navigation_node accel_limit_mode vector
+```
+
+当前参数保持：
+
+```text
+max_wheel_accel_rad_s2 = 25.0 rad/s^2
+max_wheel_speed_rad_s = 40.0 rad/s
+accel_limit_mode = per_wheel
+```
+
+`40 rad/s` 四輪同比速度限幅和 `/local_driving` 超時停止均保持不變。
+
+### 预期影响与边界
+
+`per_wheel` 手感更直接，符合目前你希望保留 25 rad/s² 煞車反應的需求；`vector` 可在加速過程更好保持四輪比例，但會讓某些方向的整體斜坡更像被同一比例拉住。沒有 IMU 時，兩者都不能主動修正匀速階段由機械、輪胎、地面或載重造成的偏航。
+
+## 2026-06-12 - Motor 8 混合控制模式实验
+
+`damiao_node` 默认电机列表扩展为 Motor 1-8。Motor 1-6 继续使用 `VEL`，Motor 7/8
+使用 `POS_VEL`。控制模式通过参数配置：
+
+```text
+motor_ids = [1,2,3,4,5,6,7,8]
+position_mode_motor_ids = [8]
+neutral_position_tolerance_rad = 0.05 rad
+position_hold_speed_rad_s = 0.1 rad/s
+```
+
+启动和急停恢复时，driver 按电机 ID 恢复对应模式。Motor 8 在收到与实时反馈位置足够
+接近的安全命令前不会解锁运动；恢复过程不会重放旧目标。位置命令超过
+`command_timeout_sec = 0.5 s` 未刷新时，driver 使用最新反馈位置发送保持命令。
+
+`/damiao_motor_status` 原有 10 个字段顺序保持不变，并在末尾追加：
+
+```text
+[10] position_rad
+[11] velocity_rad_s
+[12] torque
+[13] active_control_mode   # 2=POS_VEL, 3=VEL
+```
+
+模式不匹配的命令会被拒绝，例如默认配置下向 Motor 7/8 发送 `mode=3`，或向 Motor 1-6
+发送 `mode=2`。当前版本仍使用一个 USB-CAN；双 USB-CAN 总线拆分属于后续独立改动。
+
+## 2026-06-13 - Motor 7/8 默认 POS_VEL
+
+`position_mode_motor_ids` 默认值由 `[8]` 改为 `[7, 8]`。因此 Motor 1-6 使用 VEL，
+Motor 7-8 使用 POS_VEL。Motor 7/8 的初始化、反馈恢复、安全解锁和位置命令 watchdog
+采用相同底层逻辑。向 Motor 7/8 发送 VEL 命令会被模式检查拒绝。
+
+
+## 2026-06-15 現行人視角底盤控制
+
+此節為目前正式配置，取代文件前面所有「十字鍵控制 Motor6」或「L3／R3 未使用」的現行
+描述；舊內容只保留作版本回溯。
+
+```text
+十字鍵上：E-stop／車頭在人視角前方，view=0
+十字鍵右：E-stop／車頭在人視角右方，view=1
+十字鍵下：E-stop／車頭在人視角後方，view=2
+十字鍵左：E-stop／車頭在人視角左方，view=3
+```
+
+十字鍵只設定左搖桿的平移座標，不會命令底盤旋轉。左搖桿必須回中才接受視角切換；右搖桿
+旋轉、`150 cm/s` 平移上限、`3.0 rad/s` 旋轉上限、`40 rad/s` 輪速上限及
+`25 rad/s²` 四輪統一加速度限幅均保持不變。
+
+Motor6 horizontal 已搬到：
+
+```text
+L3：-10 rad/s
+R3：+10 rad/s
+L3 + R3 或全部鬆開：0 rad/s
+```
+
+監控目前視角：
+
+```bash
+ros2 topic echo /view_orientation
+```
+
+本功能已於 2026-06-15 完成實機測試並確認繼續採用。
+
+
+## 2026-06-19 現行手柄鍵位總表（以 CONTROLLER_USAGE.md 為準）
+
+目前手柄操作的唯一準則已整理到 `/home/robotics/robocon2026_r1/r1_control_ws/CONTROLLER_USAGE.md`。若本文件前面存在舊版鍵位描述，保留為歷史紀錄；實機操作以本節和 `CONTROLLER_USAGE.md` 為準。
+
+固定不變：左搖桿控制底盤平移，右搖桿控制底盤旋轉，D-pad 設定 KFS visual front 的人視角方向，`X+Y+B+A` 長按 5 秒觸發 Raspberry Pi shutdown command。
+
+模式切換：`SELECT/中左 = STAFF mode (/operation_mode=1)`，`START/中右 = KFS mode (/operation_mode=2)`。
+
+STAFF mode：`A=Motor7 左右 90°/preset`，`X=Motor8 左右 90°/preset`，`B=Motor7 staff gripper relay`，`Y=Motor8 staff gripper relay`，`R1/R2=Motor7 微調 -/+`，`L1/L2=Motor8 微調 -/+`，`R3/P1=Motor7 抬頭/inclination relay`，`L3/P2=Motor8 抬頭/inclination relay`。
+
+KFS mode：`Y=KFS gripper`，`L2/R2=Motor6 horizontal positive/negative`，`L1/R1=Motor5 elevator negative/positive`。
+
+最新 Arduino 五路 relay 順序為 `[KFS gripper, M7 gripper, M8 inclination, M8 gripper, M7 inclination]`，安全狀態為 `[0,1,0,1,0]`。
+
+## 2026-06-19 - v16 加速度斜坡模式可切換
+
+本節取代 v15 中「舊逐輪獨立限幅已刪除、沒有保留模式開關」的目前行為說明。現在 `local_navigation_node` 保留速度斜坡，但新增參數：
+
+```text
+accel_limit_mode = per_wheel | vector
+```
+
+目前預設為：
+
+```text
+max_wheel_accel_rad_s2 = 25.0 rad/s^2
+accel_limit_mode = per_wheel
+```
+
+`per_wheel`：每個輪子各自最多變化 `max_wheel_accel_rad_s2 * dt`。這會保留加速/減速斜坡，但不使用四輪共同 `alpha`，適合用來測試 vector limit 是否影響實機手感。
+
+`vector`：使用 v15 的四輪統一 alpha：
+
+```text
+delta_i = target_i - current_i
+peak_delta = max(abs(delta_i))
+alpha = min(1, max_wheel_accel_rad_s2 * dt / peak_delta)
+new_i = current_i + alpha * delta_i
+```
+
+Runtime 切換：
+
+```bash
+ros2 param set /local_navigation_node accel_limit_mode per_wheel
+ros2 param set /local_navigation_node accel_limit_mode vector
+ros2 param get /local_navigation_node accel_limit_mode
+```
+
+注意：`per_wheel` 不是取消加速度限制；如果要完全取消速度斜坡才把 `max_wheel_accel_rad_s2` 設為 `0.0`。目前仍保留 `max_wheel_speed_rad_s = 40.0 rad/s` 的四輪同比速度限幅和 `/local_driving` 超時停止。
+
+
+## 2026-06-20 - v17 右搖桿旋轉速度 3.0 rad/s
+
+目前 `joystick_bridge.max_rotation = 3.0 rad/s`。底盤輪速上限仍為：
+
+```text
+local_navigation_node.max_wheel_speed_rad_s = 40.0 rad/s
+local_navigation_node.max_wheel_accel_rad_s2 = 25.0 rad/s^2
+local_navigation_node.accel_limit_mode = per_wheel
+```
+
+`3.0 rad/s` 旋轉對單輪增加約 `15.45 rad/s`。因此 `150 cm/s` 純前後/左右 + 滿旋轉約需 `39.07 rad/s`，仍低於 `40 rad/s`；但 `150 cm/s` 斜向最壞方向 + 滿旋轉約需 `48.86 rad/s`，會觸發四輪同比速度限幅。這是預期行為，不是 joystick bridge 失效。
+
+## 2026-06-20 Current Rotation Default
+
+Current source default:
+
+```text
+joystick_bridge.max_rotation = 3.0 rad/s
+```
+
+Older sections mentioning `1.2 rad/s` or `2.4 rad/s` are historical and are not the current runtime default.
+
+## 2026-06-20 Archived Previous README Content - base-v15-accel
+
+以下內容是本次 source-verified 文檔同步前已存在的 README 段落。它們已被前面的 current/source-verified 段落取代，只保留作版本回溯與排錯依據，不代表目前實機操作。
+
+<details><summary>Archived section 1</summary>
+
+## 2026-06-11 - v15 四轮统一矢量加速度限制
+
+### 修改原因
+
+旧实现对四个轮子分别执行 `±max_wheel_accel_rad_s2` 截断。任意方向移动时四轮目标速度本来就不同，例如约 22° 平移会得到一组大小不等但旋转分量为零的轮速。逐轮独立截断会使部分轮子先到目标、部分轮子仍以最大斜率追赶，短时间破坏逆运动学给出的轮速关系，并可能产生额外偏航；较高加速度下，轮胎打滑会进一步放大该现象。
+
+### 当前实现
+
+旧逐轮独立限幅已删除，没有保留模式开关。当前每周期计算：
+
+```text
+delta_i = target_i - current_i
+peak_delta = max(abs(delta_i))
+alpha = min(1, max_wheel_accel_rad_s2 * dt / peak_delta)
+new_i = current_i + alpha * delta_i
+```
+
+四轮使用同一个 `alpha`，因此整组轮速始终沿当前有效底盘运动命令向目标有效底盘运动命令插值。由于逆运动学是线性映射，这等价于在底盘平移/旋转空间内进行一致加速，同时保证任意单轮变化率不超过参数值。
+
+当前参数保持：
+
+```text
+max_wheel_accel_rad_s2 = 25.0 rad/s^2
+max_wheel_speed_rad_s = 40.0 rad/s
+```
+
+`40 rad/s` 四轮同比速度限幅和 `/local_driving` 超时立即归零均保持不变。
+
+### 预期影响与边界
+
+预期改善起步、加速和改变摇杆方向时的偏航，特别是 22°、30° 等四轮目标速度大小不同的方向。该修改不会主动修正匀速阶段由轮子接地、滚子阻力、电机输出、载重或地面摩擦差异造成的偏航；没有 IMU 时也无法闭环保持绝对朝向。
+
+实机测试顺序：
+
+1. 架空确认四轮方向和速度变化连续。
+2. 地面分别测试 0°、22°、45°、90° 起步。
+3. 测试低速到高速、22° 到 45°、前进到斜向的方向切换。
+4. 区分“只在加速时偏航”与“达到匀速后仍持续偏航”。
+5. 若匀速仍偏航，再进行机械检查和四轮增益校准，不应继续修改矢量限幅比例。
+
+</details>
+
+maintainer: Hero@EdUHK robotics team 2026 | github: herolch07

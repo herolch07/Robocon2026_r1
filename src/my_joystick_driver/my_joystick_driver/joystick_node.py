@@ -8,6 +8,11 @@ from evdev import InputDevice, ecodes, list_devices
 
 AXIS_MAX = 512
 DEADZONE = 15  # 15 / 512 = 2.93%
+SUPPORTED_DEVICE_NAMES = {
+    '8BitDo Ultimate Wireless / Pro 2 Wired Controller',
+    'Generic X-Box pad',
+}
+
 
 class JoystickPublisher(Node):
     def __init__(self):
@@ -118,11 +123,19 @@ class JoystickPublisher(Node):
         
         return normalized
 
+    @staticmethod
+    def _is_supported_device_name(device_name, name_filter):
+        """Match confirmed controllers or a caller-provided name filter."""
+        return (
+            device_name in SUPPORTED_DEVICE_NAMES
+            or bool(name_filter and name_filter in device_name)
+        )
+
     def _find_8bitdo_device(self):
-        """Find device automatically based on name filter"""
+        """Find a confirmed controller or a device matching the configured filter."""
         devices = [InputDevice(path) for path in list_devices()]
         for device in devices:
-            if self.device_name_filter in device.name:
+            if self._is_supported_device_name(device.name, self.device_name_filter):
                 return device
         return None
     

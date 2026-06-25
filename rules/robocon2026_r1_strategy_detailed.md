@@ -390,3 +390,5 @@ flowchart TD
 ## 15. 队内最简口令版
 
 > **先组一把, R1合法出门。R2只拿头, 不进林。R1收自己的三个KFS, 进Arena先放底排。武器别乱用, 留着打对方三连关键格。最后10秒保分, 不冒险。**
+
+maintainer: Hero@EdUHK robotics team 2026 | github: herolch07

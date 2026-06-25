@@ -1,3 +1,5 @@
+> 2026-06-19 現行操作入口：目前手柄鍵位、STAFF/KFS mode、D-pad 視角、五路 relay 順序請先看 [`CONTROLLER_USAGE.md`](CONTROLLER_USAGE.md)。本文若是舊測試/排查紀錄，內容保留作歷史，不代表目前實機鍵位。
+
 # ROS2 Domain Isolation for R1 / R2
 
 本文档说明为什么 R1 会看到 R2 的 node / topic，为什么这会影响底盘调试，以及以后如何固定避免。
@@ -151,7 +153,7 @@ export ROS_LOCALHOST_ONLY=1
 然后启动 R1：
 
 ```bash
-cd /home/robotics/robocon/new_ws
+cd /home/robotics/robocon2026_r1/r1_control_ws
 source install/setup.bash
 ./r1_start_base_1_0.sh
 ```
@@ -272,12 +274,17 @@ ros2 node list
 因此根因不是单纯 joystick mapping，而是 R1/R2 没有做 ROS2 domain 隔离，导致调试和控制链被其它机器人污染。
 
 
-## 10. 当前 R1 默认速度档位
+## 10. 当前 R1 默认速度配置
 
-R1/R2 domain 隔离确认后，R1 controller 默认平移速度档位继续采用较安全路线：
+当前 R1 不再使用 START/SELECT 速度档位；START/SELECT 只用于 STAFF/KFS mode。source 默认平移和轮速配置为：
 
 ```text
-10 -> 20 -> 40 -> 60 -> 100 -> 150 cm/s
+joystick_bridge.max_speed_cm = 150.0 cm/s
+joystick_bridge.max_rotation = 3.0 rad/s
+local_navigation_node.max_wheel_speed_rad_s = 40.0 rad/s
+local_navigation_node.max_wheel_accel_rad_s2 = 25.0 rad/s^2
 ```
 
-`local_navigation_node max_wheel_speed_rad_s` 仍保持 `64.0 rad/s`，因此后续如需测试 `200/400 cm/s`，应通过参数临时设置，而不是放入默认按钮档位。
+旧 `10 -> 20 -> 40 -> 60 -> 100 -> 150 cm/s` 速度档和 `64.0 rad/s` 轮速内容只保留在历史调试记录中，不代表当前实机默认。
+
+maintainer: Hero@EdUHK robotics team 2026 | github: herolch07

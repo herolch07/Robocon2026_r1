@@ -1,3 +1,5 @@
+> 2026-06-19 現行操作入口：目前手柄鍵位、STAFF/KFS mode、D-pad 視角、五路 relay 順序請先看 [`CONTROLLER_USAGE.md`](CONTROLLER_USAGE.md)。本文若是舊測試/排查紀錄，內容保留作歷史，不代表目前實機鍵位。
+
 # R1 Chassis Speed Tuning Notes
 
 本文记录 R1 底盘速度相关参数、计算方式和实机调参注意事项。
@@ -57,14 +59,13 @@ max_wheel_accel_rad_s2
 | 参数 | 默认值 | 单位 | 所属节点 | 作用 |
 |---|---:|---|---|---|
 | `max_speed_cm` | `150.0` | `cm/s` | `/joystick_bridge` | 左摇杆推到底时的目标最大平移速度 |
-| `max_rotation` | `1.2` | `rad/s` | `/joystick_bridge` | 右摇杆推到底时的目标最大旋转角速度 |
+| `max_rotation` | `3.0` | `rad/s` | `/joystick_bridge` | 右摇杆推到底时的目标最大旋转角速度 |
 | `translation_linear_weight` | `0.1` | ratio | `/joystick_bridge` | 平移混合曲线线性权重 |
 | `rotation_linear_weight` | `0.1` | ratio | `/joystick_bridge` | 旋转混合曲线线性权重 |
-| `gripper_linear_weight` | `0.1` | ratio | `/arm_gripper_joystick_bridge_node` | Motor 7 扳机混合曲线线性权重 |
 | `deadzone` | `15` | joystick units | `/joystick_bridge` | 摇杆小幅漂移过滤，当前摇杆范围是 `-512..512` |
 | `input_timeout_sec` | `0.3` | `s` | `/joystick_bridge` | `/joystick_data` 超时后发布底盘停止指令 |
-| `max_wheel_speed_rad_s` | `64.0` | `rad/s` | `/local_navigation_node` | 单个轮子的角速度上限 |
-| `max_wheel_accel_rad_s2` | `12.0` | `rad/s^2` | `/local_navigation_node` | 单个轮子的角加速度上限 |
+| `max_wheel_speed_rad_s` | `40.0` | `rad/s` | `/local_navigation_node` | 单个轮子的角速度上限 |
+| `max_wheel_accel_rad_s2` | `25.0` | `rad/s^2` | `/local_navigation_node` | 单个轮子的角加速度上限 |
 | `omniwheel_radius_m` | `0.0635` | `m` | `/local_navigation_node` | 全向轮半径，用于线速度/角速度换算 |
 | `command_timeout_sec` | `0.3` | `s` | `/local_navigation_node` | `/local_driving` 超时后 Motor 1-4 归零 |
 | `command_timeout_sec` | `0.5` | `s` | `/motor_controller_node` | 连续 VEL 命令超时后对应电机归零 |
@@ -74,14 +75,16 @@ max_wheel_accel_rad_s2
 ```text
 max_speed_cm = 150.0
 translation_linear_weight = 0.1
-max_rotation = 1.2
+max_rotation = 3.0
 rotation_linear_weight = 0.1
-gripper max_speed_rad_s = 1.3
-gripper_linear_weight = 0.1
+Motor7/8 position_b_rad = 32.0
+Motor7/8 position_c_rad = -32.0
+Motor7/8 preset_speed_rad_s = 3.0
+Motor7/8 trim_speed_rad_s = 2.0
 deadzone = 15
 input_timeout_sec = 0.3
-max_wheel_speed_rad_s = 64.0
-max_wheel_accel_rad_s2 = 12.0
+max_wheel_speed_rad_s = 40.0
+max_wheel_accel_rad_s2 = 25.0
 omniwheel_radius_m = 0.0635
 local_navigation_node command_timeout_sec = 0.3
 damiao_node command_timeout_sec = 0.5
@@ -149,48 +152,28 @@ ros2 param set /local_navigation_node max_wheel_speed_rad_s 64.0
 chassis_speed_m_s = wheel_speed_rad_s * wheel_radius_m
 ```
 
-当前轮半径：
+当前 source 默认：
 
 ```text
 wheel_radius_m = 0.0635
-```
-
-如果设置：
-
-```text
-max_wheel_speed_rad_s = 64.0
+max_wheel_speed_rad_s = 40.0
 ```
 
 理论轮子线速度：
 
 ```text
-64.0 * 0.0635 = 4.064 m/s
+40.0 * 0.0635 = 2.540 m/s = 254.0 cm/s
 ```
 
-换算：
+所以当前 `150 cm/s` 手柄目标在纯前后/左右平移时不会被 `40 rad/s` 轮速限制截断；斜向或叠加满旋转时仍可能触发四轮同比缩放。
+
+旧的 `64 rad/s / 400 cm/s` 段落属于历史高风险测试记录：
 
 ```text
-4.064 m/s = 406.4 cm/s
+64.0 * 0.0635 = 4.064 m/s = 406.4 cm/s
 ```
 
-因此，如果同时设置：
-
-```bash
-ros2 param set /joystick_bridge max_speed_cm 400.0
-ros2 param set /local_navigation_node max_wheel_speed_rad_s 64.0
-```
-
-理论纯平移最高目标速度约为：
-
-```text
-min(400.0, 406.4) = 400.0 cm/s
-```
-
-也就是：
-
-```text
-400 cm/s = 4.0 m/s
-```
+这高于 DM-S3519 输出轴实际能力边界，不应作为当前默认设置。
 
 ## 5. 加速度计算
 
@@ -200,36 +183,32 @@ min(400.0, 406.4) = 400.0 cm/s
 chassis_accel_m_s2 = wheel_accel_rad_s2 * wheel_radius_m
 ```
 
-默认：
+当前 source 默认：
 
 ```text
-max_wheel_accel_rad_s2 = 12.0
+max_wheel_accel_rad_s2 = 25.0
+wheel_radius_m = 0.0635
 ```
 
-线加速度约为：
+理论线加速度约为：
 
 ```text
-12.0 * 0.0635 = 0.762 m/s^2
+25.0 * 0.0635 = 1.5875 m/s^2
 ```
 
-从 `0` 加速到 `4.0 m/s`，理论需要：
+纯前后/左右平移到 `150 cm/s` 约需要：
 
 ```text
-4.0 / 0.762 = 5.25 s
+1.5 / 1.5875 = 0.94 s
 ```
 
-速度随时间大约为：
+到 `40 rad/s` 轮速对应的 `254 cm/s` 理论边界约需要：
 
 ```text
-1 s: 76 cm/s
-2 s: 152 cm/s
-3 s: 229 cm/s
-4 s: 305 cm/s
-5 s: 381 cm/s
-5.25 s: 400 cm/s
+2.54 / 1.5875 = 1.60 s
 ```
 
-前提是电机、驱动器、电池和轮子抓地力都能支持。
+这些是理想计算；真实加速仍受电机、驱动器限流、电池、轮子抓地力、载重和地面影响。
 
 ## 6. 22.8V 和 20kg 载重的影响
 
@@ -367,7 +346,7 @@ ros2 param set /joystick_bridge max_speed_cm 400.0
 ros2 param set /local_navigation_node max_wheel_speed_rad_s 64.0
 ```
 
-如果 `max_wheel_accel_rad_s2` 保持默认 `12.0`，加速到目标速度大约需要 `5.25 s`。
+这是旧高风险测试示例；当前默认 `max_wheel_accel_rad_s2=25.0`，且当前默认轮速上限为 `40.0 rad/s`。
 
 不建议在 20kg 载重实机上直接使用这个设置。应先低速逐步测试。
 
@@ -391,8 +370,174 @@ echo $ROS_LOCALHOST_ONLY
 ros2 topic list
 ```
 
-R1 speed tests must not be run while `/base/dummy_control` or `/damiao_motor_controller` from R2 is visible. Current controller speed levels are `10/20/40/60/100/150 cm/s`.
+R1 speed tests must not be run while `/base/dummy_control` or `/damiao_motor_controller` from R2 is visible. Current controller speed levels have been removed; source default is `max_speed_cm=150.0 cm/s`.
 
 ## 2026-06-06 当前平移控制策略
 
-当前默认平移上限为 `150 cm/s`、旋转上限为 `1.2 rad/s`、Motor 7 上限为 `1.3 rad/s`；三者均采用 `y = 0.1x + 0.9x³`。START/SELECT 底盘速度档已取消。本文较早章节中的调速命令属于历史调试记录。
+当前默认平移上限为 `150 cm/s`、旋转上限为 `3.0 rad/s`、Motor 7/8 STAFF 位置模式按各自 controller 参数运行；三者均采用 `y = 0.1x + 0.9x³`。START/SELECT 底盘速度档已取消。本文较早章节中的调速命令属于历史调试记录。
+
+## 2026-06-10 当前有效速度边界（取代旧 64 rad/s / 400 cm/s 方案）
+
+本节是当前 DM-S3519 底盘的有效配置。本文前面的 `64 rad/s`、`400 cm/s` 内容属于历史调试记录，不应作为当前实机参数。
+
+### 当前参数
+
+```text
+joystick_bridge.max_speed_cm = 150.0 cm/s
+joystick_bridge.max_rotation = 3.0 rad/s
+local_navigation_node.max_wheel_speed_rad_s = 40.0 rad/s
+local_navigation_node.max_wheel_accel_rad_s2 = 25.0 rad/s^2
+omniwheel_radius_m = 0.0635 m
+wheel_base_radius_m = 0.327038 m
+```
+
+### 三层速度限制
+
+1. `joystick_bridge.max_speed_cm` 决定左摇杆满杆发布的目标平移速度。
+2. `local_navigation_node.max_wheel_speed_rad_s` 限制任意单轮速度；一个轮子超限时，四轮同比缩放。
+3. DM-S3519 的实际转速、负载、电池电压、地面抓地力和驱动器保护决定真实可达到速度。
+
+因此，提高 `max_speed_cm` 只会提高目标值，不能绕过 `40 rad/s` 轮速限制或电机机械能力。
+
+### 基本换算
+
+```text
+轮缘速度 = 轮子角速度 × 轮半径
+纯前后/左右所需轮速 = 底盘速度 / 轮半径
+当前校准矩阵斜向最坏轮速 = 底盘速度 × sqrt(2) / 轮半径
+旋转叠加轮速 = rotation_rad_s × wheel_base_radius_m / wheel_radius_m
+```
+
+满旋转 `3.0 rad/s` 对单轮增加约：
+
+```text
+3.0 × 0.327038 / 0.0635 = 15.45 rad/s
+```
+
+### 当前软件和电机理论上限
+
+| 边界 | 轮速 | 纯前后/左右 | 斜向最坏方向 |
+|---|---:|---:|---:|
+| 当前手柄默认目标 | - | `150 cm/s` | `150 cm/s` |
+| 当前软件轮速限制 | `40.00 rad/s` | `254 cm/s` | `180 cm/s` |
+| DM-S3519 额定 395 rpm | `41.36 rad/s` | `263 cm/s` | `186 cm/s` |
+| DM-S3519 空载最高 435 rpm | `45.55 rad/s` | `289 cm/s` | `205 cm/s` |
+
+这些是几何理论值，不是带载实测速度。斜向值较低，是因为当前 forward/lateral 校准矩阵在 45 度方向会让最忙的单轮承担约 `sqrt(2)` 倍平移分量。
+
+### 150 cm/s 当前状态
+
+```text
+纯前后/左右：1.50 / 0.0635 = 23.62 rad/s
+斜向最坏方向：23.62 × sqrt(2) = 33.41 rad/s
+斜向 + 3.0 rad/s 满旋转：33.41 + 15.45 = 48.86 rad/s
+```
+
+因此当前 `150 cm/s` 纯平移不会被 `40 rad/s` 截断；但斜向同时叠加满旋转会触发四轮同比缩放。纯前后/左右 + 满旋转约为 `23.62 + 15.45 = 39.07 rad/s`，仍低于 `40 rad/s`。
+
+### 如何提高到 170 cm/s
+
+临时运行时设置：
+
+```bash
+ros2 param set /joystick_bridge max_speed_cm 170.0
+```
+
+查看是否生效：
+
+```bash
+ros2 param get /joystick_bridge max_speed_cm
+ros2 param get /local_navigation_node max_wheel_speed_rad_s
+```
+
+`170 cm/s` 的计算：
+
+```text
+纯前后/左右：1.70 / 0.0635 = 26.77 rad/s
+斜向最坏方向：26.77 × sqrt(2) = 37.86 rad/s
+斜向 + 满旋转：37.86 + 6.18 = 44.04 rad/s
+```
+
+所以 `170 cm/s` 纯平移可以运行；斜向再叠加最大旋转时会超过 `40 rad/s`，`local_navigation_node` 会同比缩放四轮，实际平移和旋转都低于目标值。
+
+若要永久改为 `170 cm/s`，修改 `joystick_bridge.py` 中 `max_speed_cm` 的默认值，或后续写入 YAML/launch。仅运行 `ros2 param set` 会在节点重启后恢复 `150 cm/s`。
+
+### 为什么当前保持 40 rad/s
+
+- DM-S3519 额定输出轴速度约 `41.36 rad/s`，`40 rad/s` 留有少量额定余量。
+- 旧 `64 rad/s` 相当于约 `611 rpm`，高于电机 `435 rpm` 空载最高规格。
+- 限制组合动作的单轮峰值，可降低过流、母线压降、回生过压、打滑和 CAN/驱动器保护风险。
+- 四轮同比缩放可保留运动方向比例，不会只截断某一轮导致运动方向明显改变。
+
+### VMAX=200 不代表机械速度 200 rad/s
+
+`PMAX/VMAX/TMAX` 是 CAN 定点反馈的映射范围。若实机为：
+
+```text
+PMAX = 12.5
+VMAX = 200
+TMAX = 10
+```
+
+`VMAX=200` 只用于把 12-bit 反馈速度还原成 `rad/s`，不表示 DM-S3519 输出轴能够达到 `200 rad/s`。VEL 模式发送的是浮点 `rad/s`，机械速度仍受额定 `395 rpm`、空载最高 `435 rpm` 和驱动器 `MAX_SPD` 限制。
+
+### 调高速度的推荐步骤
+
+```text
+150 -> 160 -> 170 cm/s
+```
+
+每一级在实际载重和比赛地面测试：纯前进、纯横移、斜向、原地旋转、斜向加旋转、满速松杆和正反快速切换。监控 `/damiao_motor_status`、电池压降、驱动器故障码、MOS/转子温度和轮胎打滑。当前不建议在保持 `40 rad/s` 轮速限制时直接把手柄目标改到 `200 cm/s` 以上。
+
+## 2026-06-11 加速度限制模式说明（source-verified current）
+
+当前 `max_wheel_accel_rad_s2 = 25.0` 保持不变。`local_navigation_node` 目前支持两种模式：
+
+```text
+accel_limit_mode = per_wheel   # 默认，直接启动 start base 时使用
+accel_limit_mode = vector      # 可手动切换，四轮共享同一个 alpha
+```
+
+默认 `per_wheel` 会对每个轮子的速度变化分别做 `±max_delta` 限制，手感更直接。可选 `vector` 模式才会使用四轮统一比例：
+
+```text
+alpha = min(1, 25 * dt / max(abs(target_wheel_i - current_wheel_i)))
+new_wheel_i = current_wheel_i + alpha * (target_wheel_i - current_wheel_i)
+```
+
+因此，当前直接启动不会启用 vector limit。需要临时测试时才执行：
+
+```bash
+ros2 param set /local_navigation_node accel_limit_mode vector
+```
+
+这类加速度限制只影响加速和方向切换阶段，不是 IMU 航向闭环。如果底盘达到稳定速度后仍持续转向，应检查轮子接地、滚子阻力、载重分布和四轮实际输出差异。
+
+## 2026-06-20 当前旋转速度更新
+
+当前右摇杆满杆旋转速度为：
+
+```text
+joystick_bridge.max_rotation = 3.0 rad/s
+```
+
+这不会改变 `max_speed_cm = 150 cm/s` 和 `local_navigation_node.max_wheel_speed_rad_s = 40.0 rad/s`。但它会改变组合动作边界：
+
+```text
+纯前后/左右 150 cm/s + 满旋转 3.0 rad/s: 23.62 + 15.45 = 39.07 rad/s
+斜向最坏 150 cm/s + 满旋转 3.0 rad/s: 33.41 + 15.45 = 48.86 rad/s
+```
+
+所以纯平移不会触发 `40 rad/s` 轮速限制；纯前后/左右加满旋转已经非常接近上限；斜向加满旋转会被 `local_navigation_node` 四轮同比速度限幅缩放。
+
+## 2026-06-20 Current Rotation Default
+
+Current source default:
+
+```text
+joystick_bridge.max_rotation = 3.0 rad/s
+```
+
+Older sections mentioning `1.2 rad/s` or `2.4 rad/s` are historical and are not the current runtime default.
+
+maintainer: Hero@EdUHK robotics team 2026 | github: herolch07

@@ -1,7 +1,7 @@
 #!/bin/bash
 # 停止所有后台运行的节点 - 增强版
 
-WS_DIR="/home/robotics/robocon/new_ws"
+WS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PID_FILE="$WS_DIR/.pids"
 
 echo "=========================================="

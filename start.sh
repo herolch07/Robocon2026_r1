@@ -4,7 +4,7 @@
 
 set -e
 
-WS_DIR="/home/robotics/robocon/new_ws"
+WS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "=========================================="
 echo "  启动底盘控制系统 - R2-700"

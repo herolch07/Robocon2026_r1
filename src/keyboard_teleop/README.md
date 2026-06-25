@@ -1,4 +1,10 @@
+> 2026-06-19 現行操作入口：目前手柄鍵位、STAFF/KFS mode、D-pad 視角、五路 relay 順序請先看 `/home/robotics/robocon2026_r1/r1_control_ws/CONTROLLER_USAGE.md`。本文若是舊測試/排查紀錄，內容保留作歷史，不代表目前實機鍵位。
+
 # keyboard_teleop
+
+## 2026-06-20 Source-Verified Current Warning
+
+`keyboard_teleop_node` 仍按舊調試接口發布 `/arm_gripper_speed_cmd` 和二值 `/pneumatic_gripper_cmd = [D9_gripper_state, D8_height_state]`。這符合目前 source code，但不符合正式五路 Arduino relay 比賽操作；正式操作請使用手柄和 `r1_start_base_1_0.sh`。
 
 键盘临时遥控 package。它用于没有实体手柄时，在 Linux terminal 中用键盘发布机器人各子系统的既有控制 topic。
 
@@ -226,7 +232,7 @@ Ctrl+C 或 ROS shutdown
 ## 最小可运行示例
 
 ```bash
-cd /home/robotics/robocon/new_ws
+cd /home/robotics/robocon2026_r1/r1_control_ws
 colcon build --symlink-install --packages-select keyboard_teleop
 source install/setup.bash
 ros2 run keyboard_teleop keyboard_teleop_node
@@ -272,3 +278,5 @@ ros2 node list
 /arm_gripper_joystick_bridge_node
 /pneumatic_gripper_joystick_bridge_node
 ```
+
+maintainer: Hero@EdUHK robotics team 2026 | github: herolch07

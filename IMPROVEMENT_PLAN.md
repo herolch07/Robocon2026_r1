@@ -1,3 +1,5 @@
+> 2026-06-19 現行操作入口：目前手柄鍵位、STAFF/KFS mode、D-pad 視角、五路 relay 順序請先看 [`CONTROLLER_USAGE.md`](CONTROLLER_USAGE.md)。本文若是舊測試/排查紀錄，內容保留作歷史，不代表目前實機鍵位。
+
 # 系统改进建议 - 符合 AGENTS.md 规范
 
 > 当前状态说明：本文件前半部分是 2026-02 期间的历史改进计划，其中 `timeout_sec = 0.5`、`joystick_bridge` 缺少 watchdog 等段落已不是当前代码状态。当前状态以文末“2026-05-22 当前状态更新”和根目录 `README.md` 为准。
@@ -222,3 +224,5 @@ ros2 run joystick_bridge joystick_bridge --ros-args \
 - `README.md` 顶部当前最终版说明
 - `r1 final operation guide 1.0.md` 第 10 节
 - `src/base_omniwheel_r2_700/README.md` v8 实机最终确认版
+
+maintainer: Hero@EdUHK robotics team 2026 | github: herolch07

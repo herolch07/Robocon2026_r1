@@ -22,7 +22,7 @@ class ElevatorControllerNode(Node):
         super().__init__("elevator_controller_node")
 
         self.declare_parameter("motor_id", 5)
-        self.declare_parameter("max_speed_rad_s", 3.0)
+        self.declare_parameter("max_speed_rad_s", 28.0)
         self.declare_parameter("timeout_sec", 0.3)
         self.declare_parameter("publish_hz", 20.0)
         self.declare_parameter("max_accel_rad_s2", 0.0)

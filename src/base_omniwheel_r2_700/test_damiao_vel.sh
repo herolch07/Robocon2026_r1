@@ -15,7 +15,8 @@ else
     exit 1
 fi
 
-source /home/robotics/robocon/new_ws/install/setup.bash
+WS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$WS_DIR/install/setup.bash"
 
 # 测试参数
 MODE=3

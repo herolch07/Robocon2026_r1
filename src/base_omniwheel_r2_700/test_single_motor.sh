@@ -7,7 +7,8 @@ set -e
 
 # Source ROS2 and workspace
 source /opt/ros/humble/setup.bash 2>/dev/null || source /opt/ros/jazzy/setup.bash
-source /home/robotics/robocon/new_ws/install/setup.bash
+WS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$WS_DIR/install/setup.bash"
 
 echo "=========================================="
 echo "单电机测试"

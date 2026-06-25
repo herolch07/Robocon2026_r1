@@ -21,8 +21,8 @@ else
     exit 1
 fi
 
-# Source workspace (hardcoded for this specific project)
-WS_DIR="/home/robotics/robocon/new_ws"
+# Resolve the workspace from this package location
+WS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 SETUP_SCRIPT="$WS_DIR/install/setup.bash"
 
 # Verify setup script exists

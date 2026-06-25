@@ -1,3 +1,5 @@
+> 2026-06-19 現行操作入口：目前手柄鍵位、STAFF/KFS mode、D-pad 視角、五路 relay 順序請先看 `/home/robotics/robocon2026_r1/r1_control_ws/CONTROLLER_USAGE.md`。本文若是舊測試/排查紀錄，內容保留作歷史，不代表目前實機鍵位。
+
 # Joystick Bridge 故障排查文档
 
 ## 问题记录：ros2 run 报错 "No executable found"
@@ -25,7 +27,7 @@ No executable found
 - **ROS2 发行版**：Jazzy
 - **操作系统**：Ubuntu 24.04 / Linux 6.8.0-1044-raspi
 - **Python 版本**：3.12
-- **工作空间**：`/home/robotics/robocon/new_ws`
+- **工作空间**：`/home/robotics/robocon2026_r1/r1_control_ws`
 
 ---
 
@@ -160,7 +162,7 @@ setup(
 #### 3. 重新编译
 
 ```bash
-cd /home/robotics/robocon/new_ws
+cd /home/robotics/robocon2026_r1/r1_control_ws
 rm -rf build/joystick_bridge install/joystick_bridge
 colcon build --packages-select joystick_bridge
 source install/setup.bash
@@ -183,7 +185,7 @@ $ ros2 run joystick_bridge joystick_bridge
 [INFO] [joystick_bridge]: Max speed: 150.0 cm/s
 [INFO] [joystick_bridge]: Translation curve: y = a*x + (1-a)*x^3, a=0.1
 [INFO] [joystick_bridge]: Rotation curve: y = a*x + (1-a)*x^3, a=0.1
-[INFO] [joystick_bridge]: Max rotation: 1.2 rad/s
+[INFO] [joystick_bridge]: Max rotation: 3.0 rad/s
 [INFO] [joystick_bridge]: Deadzone: 15
 # ✅ 成功启动
 ```
@@ -322,3 +324,5 @@ def destroy_node(self):
 
 **维护者**：EdUHK Robocon Robotics Team  
 **最后更新**：2026-02-03
+
+maintainer: Hero@EdUHK robotics team 2026 | github: herolch07

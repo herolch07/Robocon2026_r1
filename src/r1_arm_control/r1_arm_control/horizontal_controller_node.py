@@ -22,7 +22,7 @@ class HorizontalControllerNode(Node):
         super().__init__("horizontal_controller_node")
 
         self.declare_parameter("motor_id", 6)
-        self.declare_parameter("max_speed_rad_s", 20.0)
+        self.declare_parameter("max_speed_rad_s", 30.0)
         self.declare_parameter("timeout_sec", 0.3)
         self.declare_parameter("publish_hz", 20.0)
         self.declare_parameter("max_accel_rad_s2", 0.0)

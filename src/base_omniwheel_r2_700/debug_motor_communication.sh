@@ -10,7 +10,8 @@ echo ""
 
 # Source environment
 source /opt/ros/humble/setup.bash 2>/dev/null || source /opt/ros/jazzy/setup.bash
-source /home/robotics/robocon/new_ws/install/setup.bash
+WS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$WS_DIR/install/setup.bash"
 
 echo "[1] 检查 damiao_node 是否运行..."
 if ros2 node list 2>/dev/null | grep -q motor_controller_node; then
