@@ -1,4 +1,0 @@
-[INFO] [1770121950.444649919] [joystick_node]: Joystick publisher node initialized
-[INFO] [1770121950.445317819] [joystick_node]: Configuration: auto_detect=True, device_path='', filter='8BitDo'
-[INFO] [1770121950.445809216] [joystick_node]: Joystick states reset to safety (all zeros)
-[INFO] [1770121950.513402786] [joystick_node]: Auto-detected device: 8BitDo Ultimate Wireless / Pro 2 Wired Controller

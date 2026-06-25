@@ -1,5 +1,0 @@
-[INFO] [1770121950.752170474] [joystick_bridge]: Joystick bridge node initialized
-[INFO] [1770121950.752957728] [joystick_bridge]: Max speed: 100.0 cm/s
-[INFO] [1770121950.753534256] [joystick_bridge]: Max rotation: 2.0 rad/s
-[INFO] [1770121950.754133247] [joystick_bridge]: Deadzone: 410
-[INFO] [1770121950.754731775] [joystick_bridge]: Timeout threshold: 0.5s
